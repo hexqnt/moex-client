@@ -1,6 +1,6 @@
 [package]
 name = "moex-client"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["hexqnt <kvover@gmail.com>"]
 description = "Strictly-typed, unofficial Rust client for Moscow Exchange ISS API."

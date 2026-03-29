@@ -1,10 +1,10 @@
-//! Fluent-утилиты для отбора и сортировки доменных коллекций.
+//! Утилиты fluent-интерфейса для отбора и сортировки доменных коллекций.
 
 use std::cmp::Ordering;
 
 use super::{Index, IndexAnalytics, SecurityBoard};
 
-/// Fluent-операции над коллекцией индексов.
+/// Методы fluent-интерфейса для коллекции индексов.
 pub trait IndexesExt {
     /// Оставить только индексы с максимальным `till`.
     fn retain_actual_by_till(&mut self);
@@ -26,7 +26,7 @@ impl IndexesExt for Vec<Index> {
     }
 }
 
-/// Fluent-операции над коллекцией состава индекса.
+/// Методы fluent-интерфейса для коллекции состава индекса.
 pub trait IndexAnalyticsExt {
     /// Оставить только актуальную торговую сессию:
     /// максимальные `trade_session_date` и `tradingsession`.
@@ -85,7 +85,7 @@ impl IndexAnalyticsExt for Vec<IndexAnalytics> {
     }
 }
 
-/// Fluent-операции выбора режима торгов по коллекции `boards`.
+/// Методы fluent-интерфейса для выбора режима торгов из коллекции `boards`.
 pub trait SecurityBoardsExt {
     /// Найти первичный `stock`-режим (`is_primary=1`) или первый `stock`-режим.
     fn stock_primary_or_first(&self) -> Option<&SecurityBoard>;

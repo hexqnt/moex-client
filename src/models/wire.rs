@@ -1,4 +1,4 @@
-//! Внутренние wire-DTO для таблиц ISS и их преобразование в доменные типы.
+//! Внутренние wire DTO для таблиц ISS и их преобразование в доменные типы.
 //!
 //! Здесь намеренно используются tuple-структуры: их порядок полей
 //! жёстко синхронизирован с `*.columns` в HTTP-запросах.
@@ -352,7 +352,7 @@ mod optional_date {
     use super::*;
     use serde::{Deserialize, Deserializer};
 
-    /// Десериализация optional-даты ISS:
+    /// Десериализация опциональной даты ISS.
     /// `null` и пустая строка трактуются как отсутствие значения.
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<NaiveDate>, D::Error>
     where
@@ -397,7 +397,7 @@ mod optional_datetime_serde {
 
     const DATETIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
-    /// Десериализация optional-datetime ISS:
+    /// Десериализация опционального ISS datetime.
     /// `null` и пустая строка трактуются как отсутствие значения.
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<NaiveDateTime>, D::Error>
     where

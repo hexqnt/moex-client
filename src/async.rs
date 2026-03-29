@@ -1,9 +1,9 @@
 //! Асинхронный API клиента ISS.
 
 #[cfg(feature = "history")]
-/// Ленивый paginator по `history` в асинхронном API.
+/// Ленивый пагинатор по `history` в асинхронном API.
 pub use crate::moex::AsyncHistoryPages as HistoryPages;
-/// Основные paginator-ы и scope-типы асинхронного API.
+/// Основные пагинаторы и типы контекстов асинхронного API.
 pub use crate::moex::{
     AsyncCandlesPages as CandlesPages, AsyncGlobalSecuritiesPages as GlobalSecuritiesPages,
     AsyncIndexAnalyticsPages as IndexAnalyticsPages,
@@ -17,7 +17,7 @@ pub use crate::moex::{
     AsyncTradesPages as TradesPages,
 };
 #[cfg(feature = "news")]
-/// Пагинация новостных endpoint-ов в асинхронном API.
+/// Пагинаторы новостных endpoint-ов в асинхронном API.
 pub use crate::moex::{AsyncEventsPages as EventsPages, AsyncSiteNewsPages as SiteNewsPages};
 /// Асинхронный клиент и его builder.
 pub use crate::moex::{AsyncMoexClient as Client, AsyncMoexClientBuilder as ClientBuilder};

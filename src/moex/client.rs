@@ -98,8 +98,8 @@ struct AsyncRateLimitState {
 
 /// Универсальный builder для произвольных ISS endpoint-ов.
 ///
-/// Служит low-level escape hatch для endpoint-ов, которые не покрыты
-/// строгим high-level API.
+/// Нужен как низкоуровневый путь для endpoint-ов, которые пока не покрыты
+/// строгим типизированным API.
 #[cfg(feature = "blocking")]
 pub struct RawIssRequestBuilder<'a> {
     client: &'a BlockingMoexClient,
@@ -115,7 +115,7 @@ pub struct AsyncRawIssRequestBuilder<'a> {
     query: Vec<(Box<str>, Box<str>)>,
 }
 
-/// Асинхронный ленивый paginator по страницам `index_analytics`.
+/// Асинхронный ленивый пагинатор по страницам `index_analytics`.
 #[cfg(feature = "async")]
 pub struct AsyncIndexAnalyticsPages<'a> {
     client: &'a AsyncMoexClient,
@@ -123,7 +123,7 @@ pub struct AsyncIndexAnalyticsPages<'a> {
     pagination: PaginationTracker<(chrono::NaiveDate, SecId)>,
 }
 
-/// Асинхронный ленивый paginator по страницам `securities`.
+/// Асинхронный ленивый пагинатор по страницам `securities`.
 #[cfg(feature = "async")]
 pub struct AsyncSecuritiesPages<'a> {
     client: &'a AsyncMoexClient,
@@ -133,28 +133,28 @@ pub struct AsyncSecuritiesPages<'a> {
     pagination: PaginationTracker<SecId>,
 }
 
-/// Асинхронный ленивый paginator по страницам глобального `securities`.
+/// Асинхронный ленивый пагинатор по страницам глобального `securities`.
 #[cfg(feature = "async")]
 pub struct AsyncGlobalSecuritiesPages<'a> {
     client: &'a AsyncMoexClient,
     pagination: PaginationTracker<SecId>,
 }
 
-/// Асинхронный ленивый paginator по страницам `sitenews`.
+/// Асинхронный ленивый пагинатор по страницам `sitenews`.
 #[cfg(all(feature = "async", feature = "news"))]
 pub struct AsyncSiteNewsPages<'a> {
     client: &'a AsyncMoexClient,
     pagination: PaginationTracker<u64>,
 }
 
-/// Асинхронный ленивый paginator по страницам `events`.
+/// Асинхронный ленивый пагинатор по страницам `events`.
 #[cfg(all(feature = "async", feature = "news"))]
 pub struct AsyncEventsPages<'a> {
     client: &'a AsyncMoexClient,
     pagination: PaginationTracker<u64>,
 }
 
-/// Асинхронный ленивый paginator по страницам market-level `securities`.
+/// Асинхронный ленивый пагинатор по страницам `securities` на уровне рынка.
 #[cfg(feature = "async")]
 pub struct AsyncMarketSecuritiesPages<'a> {
     client: &'a AsyncMoexClient,
@@ -163,7 +163,7 @@ pub struct AsyncMarketSecuritiesPages<'a> {
     pagination: PaginationTracker<SecId>,
 }
 
-/// Асинхронный ленивый paginator по страницам market-level `trades`.
+/// Асинхронный ленивый пагинатор по страницам `trades` на уровне рынка.
 #[cfg(feature = "async")]
 pub struct AsyncMarketTradesPages<'a> {
     client: &'a AsyncMoexClient,
@@ -172,7 +172,7 @@ pub struct AsyncMarketTradesPages<'a> {
     pagination: PaginationTracker<u64>,
 }
 
-/// Асинхронный ленивый paginator по страницам `trades`.
+/// Асинхронный ленивый пагинатор по страницам `trades`.
 #[cfg(feature = "async")]
 pub struct AsyncTradesPages<'a> {
     client: &'a AsyncMoexClient,
@@ -183,7 +183,7 @@ pub struct AsyncTradesPages<'a> {
     pagination: PaginationTracker<u64>,
 }
 
-/// Асинхронный ленивый paginator по страницам `history`.
+/// Асинхронный ленивый пагинатор по страницам `history`.
 #[cfg(all(feature = "async", feature = "history"))]
 pub struct AsyncHistoryPages<'a> {
     client: &'a AsyncMoexClient,
@@ -194,7 +194,7 @@ pub struct AsyncHistoryPages<'a> {
     pagination: PaginationTracker<chrono::NaiveDate>,
 }
 
-/// Асинхронный ленивый paginator по страницам `secstats`.
+/// Асинхронный ленивый пагинатор по страницам `secstats`.
 #[cfg(feature = "async")]
 pub struct AsyncSecStatsPages<'a> {
     client: &'a AsyncMoexClient,
@@ -203,7 +203,7 @@ pub struct AsyncSecStatsPages<'a> {
     pagination: PaginationTracker<(SecId, BoardId)>,
 }
 
-/// Асинхронный ленивый paginator по страницам `candles`.
+/// Асинхронный ленивый пагинатор по страницам `candles`.
 #[cfg(feature = "async")]
 pub struct AsyncCandlesPages<'a> {
     client: &'a AsyncMoexClient,
@@ -215,7 +215,7 @@ pub struct AsyncCandlesPages<'a> {
     pagination: PaginationTracker<chrono::NaiveDateTime>,
 }
 
-/// Ленивый paginator по страницам `index_analytics`.
+/// Ленивый пагинатор по страницам `index_analytics`.
 #[cfg(feature = "blocking")]
 pub struct IndexAnalyticsPages<'a> {
     client: &'a BlockingMoexClient,
@@ -223,7 +223,7 @@ pub struct IndexAnalyticsPages<'a> {
     pagination: PaginationTracker<(chrono::NaiveDate, SecId)>,
 }
 
-/// Ленивый paginator по страницам `securities`.
+/// Ленивый пагинатор по страницам `securities`.
 #[cfg(feature = "blocking")]
 pub struct SecuritiesPages<'a> {
     client: &'a BlockingMoexClient,
@@ -233,28 +233,28 @@ pub struct SecuritiesPages<'a> {
     pagination: PaginationTracker<SecId>,
 }
 
-/// Ленивый paginator по страницам глобального `securities`.
+/// Ленивый пагинатор по страницам глобального `securities`.
 #[cfg(feature = "blocking")]
 pub struct GlobalSecuritiesPages<'a> {
     client: &'a BlockingMoexClient,
     pagination: PaginationTracker<SecId>,
 }
 
-/// Ленивый paginator по страницам `sitenews`.
+/// Ленивый пагинатор по страницам `sitenews`.
 #[cfg(all(feature = "blocking", feature = "news"))]
 pub struct SiteNewsPages<'a> {
     client: &'a BlockingMoexClient,
     pagination: PaginationTracker<u64>,
 }
 
-/// Ленивый paginator по страницам `events`.
+/// Ленивый пагинатор по страницам `events`.
 #[cfg(all(feature = "blocking", feature = "news"))]
 pub struct EventsPages<'a> {
     client: &'a BlockingMoexClient,
     pagination: PaginationTracker<u64>,
 }
 
-/// Ленивый paginator по страницам market-level `securities`.
+/// Ленивый пагинатор по страницам `securities` на уровне рынка.
 #[cfg(feature = "blocking")]
 pub struct MarketSecuritiesPages<'a> {
     client: &'a BlockingMoexClient,
@@ -263,7 +263,7 @@ pub struct MarketSecuritiesPages<'a> {
     pagination: PaginationTracker<SecId>,
 }
 
-/// Ленивый paginator по страницам market-level `trades`.
+/// Ленивый пагинатор по страницам `trades` на уровне рынка.
 #[cfg(feature = "blocking")]
 pub struct MarketTradesPages<'a> {
     client: &'a BlockingMoexClient,
@@ -272,7 +272,7 @@ pub struct MarketTradesPages<'a> {
     pagination: PaginationTracker<u64>,
 }
 
-/// Ленивый paginator по страницам `trades`.
+/// Ленивый пагинатор по страницам `trades`.
 #[cfg(feature = "blocking")]
 pub struct TradesPages<'a> {
     client: &'a BlockingMoexClient,
@@ -283,7 +283,7 @@ pub struct TradesPages<'a> {
     pagination: PaginationTracker<u64>,
 }
 
-/// Ленивый paginator по страницам `history`.
+/// Ленивый пагинатор по страницам `history`.
 #[cfg(all(feature = "blocking", feature = "history"))]
 pub struct HistoryPages<'a> {
     client: &'a BlockingMoexClient,
@@ -294,7 +294,7 @@ pub struct HistoryPages<'a> {
     pagination: PaginationTracker<chrono::NaiveDate>,
 }
 
-/// Ленивый paginator по страницам `secstats`.
+/// Ленивый пагинатор по страницам `secstats`.
 #[cfg(feature = "blocking")]
 pub struct SecStatsPages<'a> {
     client: &'a BlockingMoexClient,
@@ -303,7 +303,7 @@ pub struct SecStatsPages<'a> {
     pagination: PaginationTracker<(SecId, BoardId)>,
 }
 
-/// Ленивый paginator по страницам `candles`.
+/// Ленивый пагинатор по страницам `candles`.
 #[cfg(feature = "blocking")]
 pub struct CandlesPages<'a> {
     client: &'a BlockingMoexClient,
@@ -316,9 +316,9 @@ pub struct CandlesPages<'a> {
 }
 
 #[derive(Clone)]
-/// Асинхронный scope по `indexid`, владеющий значением.
+/// Асинхронный владеющий контекст для `indexid`.
 ///
-/// Полезен для ergonomic-chain, где вход передаётся как `impl TryInto<IndexId>`.
+/// Удобен для fluent-цепочек, где вход передаётся как `impl TryInto<IndexId>`.
 #[cfg(feature = "async")]
 pub struct AsyncOwnedIndexScope<'a> {
     client: &'a AsyncMoexClient,
@@ -326,7 +326,7 @@ pub struct AsyncOwnedIndexScope<'a> {
 }
 
 #[derive(Clone)]
-/// Асинхронный scope по `engine`, владеющий значением.
+/// Асинхронный владеющий контекст для `engine`.
 #[cfg(feature = "async")]
 pub struct AsyncOwnedEngineScope<'a> {
     client: &'a AsyncMoexClient,
@@ -334,7 +334,7 @@ pub struct AsyncOwnedEngineScope<'a> {
 }
 
 #[derive(Clone)]
-/// Асинхронный scope по `engine/market`, владеющий значениями.
+/// Асинхронный владеющий контекст для `engine/market`.
 #[cfg(feature = "async")]
 pub struct AsyncOwnedMarketScope<'a> {
     client: &'a AsyncMoexClient,
@@ -343,7 +343,7 @@ pub struct AsyncOwnedMarketScope<'a> {
 }
 
 #[derive(Clone)]
-/// Асинхронный scope по `engine/market/security`, владеющий значениями.
+/// Асинхронный владеющий контекст для `engine/market/security`.
 #[cfg(feature = "async")]
 pub struct AsyncOwnedMarketSecurityScope<'a> {
     client: &'a AsyncMoexClient,
@@ -353,7 +353,7 @@ pub struct AsyncOwnedMarketSecurityScope<'a> {
 }
 
 #[derive(Clone)]
-/// Асинхронный scope по `engine/market/board`, владеющий значениями.
+/// Асинхронный владеющий контекст для `engine/market/board`.
 #[cfg(feature = "async")]
 pub struct AsyncOwnedBoardScope<'a> {
     client: &'a AsyncMoexClient,
@@ -363,7 +363,7 @@ pub struct AsyncOwnedBoardScope<'a> {
 }
 
 #[derive(Clone)]
-/// Асинхронный scope по `securities/{secid}`, владеющий `secid`.
+/// Асинхронный владеющий контекст для `securities/{secid}`.
 #[cfg(feature = "async")]
 pub struct AsyncOwnedSecurityResourceScope<'a> {
     client: &'a AsyncMoexClient,
@@ -371,7 +371,7 @@ pub struct AsyncOwnedSecurityResourceScope<'a> {
 }
 
 #[derive(Clone)]
-/// Асинхронный scope по `engine/market/board/security`, владеющий значениями.
+/// Асинхронный владеющий контекст для `engine/market/board/security`.
 #[cfg(feature = "async")]
 pub struct AsyncOwnedSecurityScope<'a> {
     client: &'a AsyncMoexClient,
@@ -382,9 +382,9 @@ pub struct AsyncOwnedSecurityScope<'a> {
 }
 
 #[derive(Clone)]
-/// Blocking scope по `indexid`, владеющий значением.
+/// Блокирующий владеющий контекст для `indexid`.
 ///
-/// Полезен для ergonomic-chain, где вход передаётся как `impl TryInto<IndexId>`.
+/// Удобен для fluent-цепочек, где вход передаётся как `impl TryInto<IndexId>`.
 #[cfg(feature = "blocking")]
 pub struct OwnedIndexScope<'a> {
     client: &'a BlockingMoexClient,
@@ -392,7 +392,7 @@ pub struct OwnedIndexScope<'a> {
 }
 
 #[derive(Clone)]
-/// Blocking scope по `engine`, владеющий значением.
+/// Блокирующий владеющий контекст для `engine`.
 #[cfg(feature = "blocking")]
 pub struct OwnedEngineScope<'a> {
     client: &'a BlockingMoexClient,
@@ -400,7 +400,7 @@ pub struct OwnedEngineScope<'a> {
 }
 
 #[derive(Clone)]
-/// Blocking scope по `engine/market`, владеющий значениями.
+/// Блокирующий владеющий контекст для `engine/market`.
 #[cfg(feature = "blocking")]
 pub struct OwnedMarketScope<'a> {
     client: &'a BlockingMoexClient,
@@ -409,7 +409,7 @@ pub struct OwnedMarketScope<'a> {
 }
 
 #[derive(Clone)]
-/// Blocking scope по `engine/market/security`, владеющий значениями.
+/// Блокирующий владеющий контекст для `engine/market/security`.
 #[cfg(feature = "blocking")]
 pub struct OwnedMarketSecurityScope<'a> {
     client: &'a BlockingMoexClient,
@@ -419,7 +419,7 @@ pub struct OwnedMarketSecurityScope<'a> {
 }
 
 #[derive(Clone)]
-/// Blocking scope по `engine/market/board`, владеющий значениями.
+/// Блокирующий владеющий контекст для `engine/market/board`.
 #[cfg(feature = "blocking")]
 pub struct OwnedBoardScope<'a> {
     client: &'a BlockingMoexClient,
@@ -429,7 +429,7 @@ pub struct OwnedBoardScope<'a> {
 }
 
 #[derive(Clone)]
-/// Blocking scope по `securities/{secid}`, владеющий `secid`.
+/// Блокирующий владеющий контекст для `securities/{secid}`.
 #[cfg(feature = "blocking")]
 pub struct OwnedSecurityResourceScope<'a> {
     client: &'a BlockingMoexClient,
@@ -437,7 +437,7 @@ pub struct OwnedSecurityResourceScope<'a> {
 }
 
 #[derive(Clone)]
-/// Blocking scope по `engine/market/board/security`, владеющий значениями.
+/// Блокирующий владеющий контекст для `engine/market/board/security`.
 #[cfg(feature = "blocking")]
 pub struct OwnedSecurityScope<'a> {
     client: &'a BlockingMoexClient,
@@ -780,7 +780,7 @@ impl BlockingMoexClient {
         }
     }
 
-    /// Создать raw-builder для произвольного ISS endpoint.
+    /// Создать builder raw-запроса для произвольного ISS endpoint.
     pub fn raw(&self) -> RawIssRequestBuilder<'_> {
         RawIssRequestBuilder {
             client: self,
@@ -789,9 +789,9 @@ impl BlockingMoexClient {
         }
     }
 
-    /// Создать raw-builder для типизированного ISS endpoint-а.
+    /// Создать builder raw-запроса для типизированного ISS endpoint-а.
     ///
-    /// Builder автоматически получает `path` и значение `iss.only` по умолчанию.
+    /// Запрос автоматически получает `path` и значение `iss.only` по умолчанию.
     pub fn raw_endpoint(&self, endpoint: IssEndpoint<'_>) -> RawIssRequestBuilder<'_> {
         let path = endpoint.path();
         let request = self.raw().path(path);
@@ -831,7 +831,7 @@ impl BlockingMoexClient {
         }
     }
 
-    /// Создать ленивый paginator страниц `index_analytics`.
+    /// Создать ленивый пагинатор страниц `index_analytics`.
     pub fn index_analytics_pages<'a>(
         &'a self,
         indexid: &'a IndexId,
@@ -886,7 +886,7 @@ impl BlockingMoexClient {
     }
 
     #[cfg(feature = "news")]
-    /// Создать ленивый paginator страниц `sitenews`.
+    /// Создать ленивый пагинатор страниц `sitenews`.
     pub fn sitenews_pages<'a>(&'a self, page_limit: NonZeroU32) -> SiteNewsPages<'a> {
         SiteNewsPages {
             client: self,
@@ -909,7 +909,7 @@ impl BlockingMoexClient {
     }
 
     #[cfg(feature = "news")]
-    /// Создать ленивый paginator страниц `events`.
+    /// Создать ленивый пагинатор страниц `events`.
     pub fn events_pages<'a>(&'a self, page_limit: NonZeroU32) -> EventsPages<'a> {
         EventsPages {
             client: self,
@@ -939,7 +939,7 @@ impl BlockingMoexClient {
         }
     }
 
-    /// Создать ленивый paginator страниц `secstats`.
+    /// Создать ленивый пагинатор страниц `secstats`.
     pub fn secstats_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -1081,7 +1081,7 @@ impl BlockingMoexClient {
     }
 
     #[cfg(feature = "history")]
-    /// Создать ленивый paginator страниц `history`.
+    /// Создать ленивый пагинатор страниц `history`.
     pub fn history_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -1132,7 +1132,7 @@ impl BlockingMoexClient {
         self.board_snapshots(board.engine(), board.market(), board.boardid())
     }
 
-    /// Зафиксировать owning-scope по `engine` из ergonomic-входа.
+    /// Зафиксировать контекст `engine` из значения, реализующего `TryInto<EngineName>`.
     pub fn engine<E>(&self, engine: E) -> Result<OwnedEngineScope<'_>, ParseEngineNameError>
     where
         E: TryInto<EngineName>,
@@ -1145,12 +1145,12 @@ impl BlockingMoexClient {
         })
     }
 
-    /// Shortcut для часто используемого engine `stock`.
+    /// Сокращение для часто используемого движка `stock`.
     pub fn stock(&self) -> Result<OwnedEngineScope<'_>, ParseEngineNameError> {
         self.engine("stock")
     }
 
-    /// Зафиксировать owning-scope по `indexid` из ergonomic-входа.
+    /// Зафиксировать контекст `indexid` из значения, реализующего `TryInto<IndexId>`.
     pub fn index<I>(&self, indexid: I) -> Result<OwnedIndexScope<'_>, ParseIndexError>
     where
         I: TryInto<IndexId>,
@@ -1163,7 +1163,7 @@ impl BlockingMoexClient {
         })
     }
 
-    /// Зафиксировать owning-scope по `secid` из ergonomic-входа.
+    /// Зафиксировать контекст `secid` из значения, реализующего `TryInto<SecId>`.
     pub fn security<S>(
         &self,
         security: S,
@@ -1191,7 +1191,7 @@ impl BlockingMoexClient {
         }
     }
 
-    /// Создать ленивый paginator страниц глобального `securities`.
+    /// Создать ленивый пагинатор страниц глобального `securities`.
     pub fn global_securities_pages<'a>(
         &'a self,
         page_limit: NonZeroU32,
@@ -1248,7 +1248,7 @@ impl BlockingMoexClient {
         }
     }
 
-    /// Создать ленивый paginator страниц market-level `securities`.
+    /// Создать ленивый пагинатор страниц `securities` на уровне рынка.
     pub fn market_securities_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -1267,7 +1267,7 @@ impl BlockingMoexClient {
         }
     }
 
-    /// Получить market-level стакан (`orderbook`) по первой странице ISS.
+    /// Получить стакан на уровне рынка (`orderbook`) по первой странице ISS.
     pub fn market_orderbook(
         &self,
         engine: &EngineName,
@@ -1300,7 +1300,7 @@ impl BlockingMoexClient {
         decode_candle_borders_json_with_endpoint(&payload, endpoint.as_str())
     }
 
-    /// Получить market-level сделки (`trades`) с единым режимом выборки страниц.
+    /// Получить сделки на уровне рынка (`trades`) с единым режимом выборки страниц.
     pub fn market_trades_query(
         &self,
         engine: &EngineName,
@@ -1320,7 +1320,7 @@ impl BlockingMoexClient {
         }
     }
 
-    /// Создать ленивый paginator страниц market-level `trades`.
+    /// Создать ленивый пагинатор страниц `trades` на уровне рынка.
     pub fn market_trades_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -1364,7 +1364,7 @@ impl BlockingMoexClient {
         }
     }
 
-    /// Создать ленивый paginator страниц `securities`.
+    /// Создать ленивый пагинатор страниц `securities`.
     pub fn securities_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -1433,7 +1433,7 @@ impl BlockingMoexClient {
         }
     }
 
-    /// Создать ленивый paginator страниц `candles`.
+    /// Создать ленивый пагинатор страниц `candles`.
     pub fn candles_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -1480,7 +1480,7 @@ impl BlockingMoexClient {
         }
     }
 
-    /// Создать ленивый paginator страниц `trades`.
+    /// Создать ленивый пагинатор страниц `trades`.
     pub fn trades_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -1918,7 +1918,7 @@ impl AsyncMoexClient {
         }
     }
 
-    /// Создать асинхронный raw-builder для произвольного ISS endpoint.
+    /// Создать builder raw-запроса для произвольного ISS endpoint.
     pub fn raw(&self) -> AsyncRawIssRequestBuilder<'_> {
         AsyncRawIssRequestBuilder {
             client: self,
@@ -1927,9 +1927,9 @@ impl AsyncMoexClient {
         }
     }
 
-    /// Создать асинхронный raw-builder для типизированного ISS endpoint-а.
+    /// Создать builder raw-запроса для типизированного ISS endpoint-а.
     ///
-    /// Builder автоматически получает `path` и значение `iss.only` по умолчанию.
+    /// Запрос автоматически получает `path` и значение `iss.only` по умолчанию.
     pub fn raw_endpoint(&self, endpoint: IssEndpoint<'_>) -> AsyncRawIssRequestBuilder<'_> {
         let path = endpoint.path();
         let request = self.raw().path(path);
@@ -1974,7 +1974,7 @@ impl AsyncMoexClient {
         }
     }
 
-    /// Создать асинхронный ленивый paginator страниц `index_analytics`.
+    /// Создать асинхронный ленивый пагинатор страниц `index_analytics`.
     pub fn index_analytics_pages<'a>(
         &'a self,
         indexid: &'a IndexId,
@@ -2036,7 +2036,7 @@ impl AsyncMoexClient {
     }
 
     #[cfg(feature = "news")]
-    /// Создать асинхронный ленивый paginator страниц `sitenews`.
+    /// Создать асинхронный ленивый пагинатор страниц `sitenews`.
     pub fn sitenews_pages<'a>(&'a self, page_limit: NonZeroU32) -> AsyncSiteNewsPages<'a> {
         AsyncSiteNewsPages {
             client: self,
@@ -2059,7 +2059,7 @@ impl AsyncMoexClient {
     }
 
     #[cfg(feature = "news")]
-    /// Создать асинхронный ленивый paginator страниц `events`.
+    /// Создать асинхронный ленивый пагинатор страниц `events`.
     pub fn events_pages<'a>(&'a self, page_limit: NonZeroU32) -> AsyncEventsPages<'a> {
         AsyncEventsPages {
             client: self,
@@ -2092,7 +2092,7 @@ impl AsyncMoexClient {
         }
     }
 
-    /// Создать асинхронный ленивый paginator страниц `secstats`.
+    /// Создать асинхронный ленивый пагинатор страниц `secstats`.
     pub fn secstats_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -2250,7 +2250,7 @@ impl AsyncMoexClient {
     }
 
     #[cfg(feature = "history")]
-    /// Создать асинхронный ленивый paginator страниц `history`.
+    /// Создать асинхронный ленивый пагинатор страниц `history`.
     pub fn history_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -2319,7 +2319,7 @@ impl AsyncMoexClient {
         }
     }
 
-    /// Создать асинхронный ленивый paginator страниц глобального `securities`.
+    /// Создать асинхронный ленивый пагинатор страниц глобального `securities`.
     pub fn global_securities_pages<'a>(
         &'a self,
         page_limit: NonZeroU32,
@@ -2382,7 +2382,7 @@ impl AsyncMoexClient {
         }
     }
 
-    /// Создать асинхронный ленивый paginator страниц market-level `securities`.
+    /// Создать асинхронный ленивый пагинатор страниц `securities` на уровне рынка.
     pub fn market_securities_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -2401,7 +2401,7 @@ impl AsyncMoexClient {
         }
     }
 
-    /// Получить market-level стакан (`orderbook`) по первой странице ISS.
+    /// Получить стакан на уровне рынка (`orderbook`) по первой странице ISS.
     pub async fn market_orderbook(
         &self,
         engine: &EngineName,
@@ -2438,7 +2438,7 @@ impl AsyncMoexClient {
         decode_candle_borders_json_with_endpoint(&payload, endpoint.as_str())
     }
 
-    /// Получить market-level сделки (`trades`) с единым режимом выборки страниц.
+    /// Получить сделки на уровне рынка (`trades`) с единым режимом выборки страниц.
     pub async fn market_trades_query(
         &self,
         engine: &EngineName,
@@ -2462,7 +2462,7 @@ impl AsyncMoexClient {
         }
     }
 
-    /// Создать асинхронный ленивый paginator страниц market-level `trades`.
+    /// Создать асинхронный ленивый пагинатор страниц `trades` на уровне рынка.
     pub fn market_trades_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -2506,7 +2506,7 @@ impl AsyncMoexClient {
         }
     }
 
-    /// Создать асинхронный ленивый paginator страниц `securities`.
+    /// Создать асинхронный ленивый пагинатор страниц `securities`.
     pub fn securities_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -2583,7 +2583,7 @@ impl AsyncMoexClient {
         }
     }
 
-    /// Создать асинхронный ленивый paginator страниц `candles`.
+    /// Создать асинхронный ленивый пагинатор страниц `candles`.
     pub fn candles_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -2634,7 +2634,7 @@ impl AsyncMoexClient {
         }
     }
 
-    /// Создать асинхронный ленивый paginator страниц `trades`.
+    /// Создать асинхронный ленивый пагинатор страниц `trades`.
     pub fn trades_pages<'a>(
         &'a self,
         engine: &'a EngineName,
@@ -2657,7 +2657,7 @@ impl AsyncMoexClient {
         }
     }
 
-    /// Зафиксировать async owning-scope по `engine` из ergonomic-входа.
+    /// Зафиксировать асинхронный контекст `engine` из значения, реализующего `TryInto<EngineName>`.
     pub fn engine<E>(&self, engine: E) -> Result<AsyncOwnedEngineScope<'_>, ParseEngineNameError>
     where
         E: TryInto<EngineName>,
@@ -2670,12 +2670,12 @@ impl AsyncMoexClient {
         })
     }
 
-    /// Shortcut для часто используемого engine `stock`.
+    /// Сокращение для часто используемого движка `stock`.
     pub fn stock(&self) -> Result<AsyncOwnedEngineScope<'_>, ParseEngineNameError> {
         self.engine("stock")
     }
 
-    /// Зафиксировать async owning-scope по `indexid` из ergonomic-входа.
+    /// Зафиксировать асинхронный контекст `indexid` из значения, реализующего `TryInto<IndexId>`.
     pub fn index<I>(&self, indexid: I) -> Result<AsyncOwnedIndexScope<'_>, ParseIndexError>
     where
         I: TryInto<IndexId>,
@@ -2688,7 +2688,7 @@ impl AsyncMoexClient {
         })
     }
 
-    /// Зафиксировать async owning-scope по `secid` из ergonomic-входа.
+    /// Зафиксировать асинхронный контекст `secid` из значения, реализующего `TryInto<SecId>`.
     pub fn security<S>(
         &self,
         security: S,
@@ -3509,7 +3509,7 @@ impl<'a> AsyncEventsPages<'a> {
 
 #[cfg(feature = "async")]
 impl<'a> AsyncMarketSecuritiesPages<'a> {
-    /// Получить следующую страницу market-level `securities`.
+    /// Получить следующую страницу `securities` на уровне рынка.
     pub async fn next_page(&mut self) -> Result<Option<Vec<Security>>, MoexError> {
         next_page_async(
             &mut self.pagination,
@@ -3522,7 +3522,7 @@ impl<'a> AsyncMarketSecuritiesPages<'a> {
         .await
     }
 
-    /// Собрать все страницы market-level `securities` в один `Vec`.
+    /// Собрать все страницы `securities` на уровне рынка в один `Vec`.
     pub async fn try_collect(mut self) -> Result<Vec<Security>, MoexError> {
         {
             let mut items = Vec::new();
@@ -3541,7 +3541,7 @@ impl<'a> AsyncMarketSecuritiesPages<'a> {
 
 #[cfg(feature = "async")]
 impl<'a> AsyncMarketTradesPages<'a> {
-    /// Получить следующую страницу market-level `trades`.
+    /// Получить следующую страницу `trades` на уровне рынка.
     pub async fn next_page(&mut self) -> Result<Option<Vec<Trade>>, MoexError> {
         next_page_async(
             &mut self.pagination,
@@ -3554,7 +3554,7 @@ impl<'a> AsyncMarketTradesPages<'a> {
         .await
     }
 
-    /// Собрать все страницы market-level `trades` в один `Vec`.
+    /// Собрать все страницы `trades` на уровне рынка в один `Vec`.
     pub async fn try_collect(mut self) -> Result<Vec<Trade>, MoexError> {
         {
             let mut items = Vec::new();
@@ -3717,12 +3717,12 @@ impl<'a> AsyncCandlesPages<'a> {
 
 #[cfg(feature = "async")]
 impl<'a> AsyncOwnedIndexScope<'a> {
-    /// Идентификатор индекса текущего async owning-scope.
+    /// Идентификатор индекса текущего асинхронного контекста.
     pub fn indexid(&self) -> &IndexId {
         &self.indexid
     }
 
-    /// Получить состав индекса (`analytics`) по текущему async owning-scope.
+    /// Получить состав индекса (`analytics`) для текущего асинхронного контекста.
     pub async fn analytics(
         &self,
         page_request: PageRequest,
@@ -3732,7 +3732,7 @@ impl<'a> AsyncOwnedIndexScope<'a> {
             .await
     }
 
-    /// Создать асинхронный ленивый paginator `analytics` для текущего индекса.
+    /// Создать асинхронный ленивый пагинатор страниц `analytics` для текущего индекса.
     pub fn analytics_pages(&self, page_limit: NonZeroU32) -> AsyncIndexAnalyticsPages<'_> {
         self.client.index_analytics_pages(&self.indexid, page_limit)
     }
@@ -3740,7 +3740,7 @@ impl<'a> AsyncOwnedIndexScope<'a> {
 
 #[cfg(feature = "async")]
 impl<'a> AsyncOwnedEngineScope<'a> {
-    /// Имя торгового движка текущего async owning-scope.
+    /// Имя торгового движка текущего асинхронного контекста.
     pub fn engine(&self) -> &EngineName {
         &self.engine
     }
@@ -3769,7 +3769,7 @@ impl<'a> AsyncOwnedEngineScope<'a> {
         })
     }
 
-    /// Shortcut для часто используемого рынка `shares`.
+    /// Сокращение для часто используемого рынка `shares`.
     pub fn shares(self) -> Result<AsyncOwnedMarketScope<'a>, ParseMarketNameError> {
         self.market("shares")
     }
@@ -3777,12 +3777,12 @@ impl<'a> AsyncOwnedEngineScope<'a> {
 
 #[cfg(feature = "async")]
 impl<'a> AsyncOwnedMarketScope<'a> {
-    /// Имя торгового движка текущего async owning-scope.
+    /// Имя торгового движка текущего асинхронного контекста.
     pub fn engine(&self) -> &EngineName {
         &self.engine
     }
 
-    /// Имя рынка текущего async owning-scope.
+    /// Имя рынка текущего асинхронного контекста.
     pub fn market(&self) -> &MarketName {
         &self.market
     }
@@ -3799,27 +3799,27 @@ impl<'a> AsyncOwnedMarketScope<'a> {
             .await
     }
 
-    /// Создать асинхронный ленивый paginator market-level `securities`.
+    /// Создать асинхронный ленивый пагинатор страниц `securities` на уровне рынка.
     pub fn securities_pages(&self, page_limit: NonZeroU32) -> AsyncMarketSecuritiesPages<'_> {
         self.client
             .market_securities_pages(&self.engine, &self.market, page_limit)
     }
 
-    /// Получить market-level стакан (`orderbook`) для текущего рынка.
+    /// Получить стакан на уровне рынка (`orderbook`) для текущего рынка.
     pub async fn orderbook(&self) -> Result<Vec<OrderbookLevel>, MoexError> {
         self.client
             .market_orderbook(&self.engine, &self.market)
             .await
     }
 
-    /// Получить market-level сделки (`trades`) для текущего рынка.
+    /// Получить сделки на уровне рынка (`trades`) для текущего рынка.
     pub async fn trades(&self, page_request: PageRequest) -> Result<Vec<Trade>, MoexError> {
         self.client
             .market_trades_query(&self.engine, &self.market, page_request)
             .await
     }
 
-    /// Создать асинхронный ленивый paginator market-level `trades`.
+    /// Создать асинхронный ленивый пагинатор страниц `trades` на уровне рынка.
     pub fn trades_pages(&self, page_limit: NonZeroU32) -> AsyncMarketTradesPages<'_> {
         self.client
             .market_trades_pages(&self.engine, &self.market, page_limit)
@@ -3832,7 +3832,7 @@ impl<'a> AsyncOwnedMarketScope<'a> {
             .await
     }
 
-    /// Создать асинхронный ленивый paginator `secstats`.
+    /// Создать асинхронный ленивый пагинатор страниц `secstats`.
     pub fn secstats_pages(&self, page_limit: NonZeroU32) -> AsyncSecStatsPages<'_> {
         self.client
             .secstats_pages(&self.engine, &self.market, page_limit)
@@ -3881,35 +3881,35 @@ impl<'a> AsyncOwnedMarketScope<'a> {
 
 #[cfg(feature = "async")]
 impl<'a> AsyncOwnedBoardScope<'a> {
-    /// Имя торгового движка текущего async owning-scope.
+    /// Имя торгового движка текущего асинхронного контекста.
     pub fn engine(&self) -> &EngineName {
         &self.engine
     }
 
-    /// Имя рынка текущего async owning-scope.
+    /// Имя рынка текущего асинхронного контекста.
     pub fn market(&self) -> &MarketName {
         &self.market
     }
 
-    /// Идентификатор режима торгов текущего async owning-scope.
+    /// Идентификатор режима торгов текущего асинхронного контекста.
     pub fn board(&self) -> &BoardId {
         &self.board
     }
 
-    /// Получить инструменты (`securities`) по текущему async owning-scope.
+    /// Получить инструменты (`securities`) для текущего асинхронного контекста.
     pub async fn securities(&self, page_request: PageRequest) -> Result<Vec<Security>, MoexError> {
         self.client
             .securities_query(&self.engine, &self.market, &self.board, page_request)
             .await
     }
 
-    /// Создать асинхронный ленивый paginator `securities` по текущему async owning-scope.
+    /// Создать асинхронный ленивый пагинатор страниц `securities` для текущего асинхронного контекста.
     pub fn securities_pages(&self, page_limit: NonZeroU32) -> AsyncSecuritiesPages<'_> {
         self.client
             .securities_pages(&self.engine, &self.market, &self.board, page_limit)
     }
 
-    /// Получить снимки инструментов (`LOTSIZE` и `LAST`) для текущего owning-scope.
+    /// Получить снимки инструментов (`LOTSIZE` и `LAST`) для текущего контекста.
     pub async fn snapshots(&self) -> Result<Vec<SecuritySnapshot>, MoexError> {
         self.client
             .board_snapshots(&self.engine, &self.market, &self.board)
@@ -3935,7 +3935,7 @@ impl<'a> AsyncOwnedBoardScope<'a> {
 
 #[cfg(feature = "async")]
 impl<'a> AsyncOwnedSecurityResourceScope<'a> {
-    /// Идентификатор инструмента текущего async owning-scope.
+    /// Идентификатор инструмента текущего асинхронного контекста.
     pub fn secid(&self) -> &SecId {
         &self.security
     }
@@ -3953,7 +3953,7 @@ impl<'a> AsyncOwnedSecurityResourceScope<'a> {
 
 #[cfg(feature = "async")]
 impl<'a> AsyncOwnedSecurityScope<'a> {
-    /// Идентификатор инструмента текущего async owning-scope.
+    /// Идентификатор инструмента текущего асинхронного контекста.
     pub fn security(&self) -> &SecId {
         &self.security
     }
@@ -3991,7 +3991,7 @@ impl<'a> AsyncOwnedSecurityScope<'a> {
     }
 
     #[cfg(feature = "history")]
-    /// Создать асинхронный ленивый paginator `history` по текущему инструменту.
+    /// Создать асинхронный ленивый пагинатор страниц `history` по текущему инструменту.
     pub fn history_pages(&self, page_limit: NonZeroU32) -> AsyncHistoryPages<'_> {
         self.client.history_pages(
             &self.engine,
@@ -4015,7 +4015,7 @@ impl<'a> AsyncOwnedSecurityScope<'a> {
             .await
     }
 
-    /// Создать асинхронный ленивый paginator `trades` по текущему инструменту.
+    /// Создать асинхронный ленивый пагинатор страниц `trades` по текущему инструменту.
     pub fn trades_pages(&self, page_limit: NonZeroU32) -> AsyncTradesPages<'_> {
         self.client.trades_pages(
             &self.engine,
@@ -4044,7 +4044,7 @@ impl<'a> AsyncOwnedSecurityScope<'a> {
             .await
     }
 
-    /// Создать асинхронный ленивый paginator `candles` по текущему инструменту.
+    /// Создать асинхронный ленивый пагинатор страниц `candles` по текущему инструменту.
     pub fn candles_pages(
         &self,
         query: CandleQuery,
@@ -4063,17 +4063,17 @@ impl<'a> AsyncOwnedSecurityScope<'a> {
 
 #[cfg(feature = "async")]
 impl<'a> AsyncOwnedMarketSecurityScope<'a> {
-    /// Имя торгового движка текущего async owning-scope.
+    /// Имя торгового движка текущего асинхронного контекста.
     pub fn engine(&self) -> &EngineName {
         &self.engine
     }
 
-    /// Имя рынка текущего async owning-scope.
+    /// Имя рынка текущего асинхронного контекста.
     pub fn market(&self) -> &MarketName {
         &self.market
     }
 
-    /// Идентификатор инструмента текущего async owning-scope.
+    /// Идентификатор инструмента текущего асинхронного контекста.
     pub fn security(&self) -> &SecId {
         &self.security
     }
@@ -4211,7 +4211,7 @@ impl<'a> EventsPages<'a> {
 
 #[cfg(feature = "blocking")]
 impl<'a> MarketSecuritiesPages<'a> {
-    /// Получить следующую страницу market-level `securities`.
+    /// Получить следующую страницу `securities` на уровне рынка.
     pub fn next_page(&mut self) -> Result<Option<Vec<Security>>, MoexError> {
         next_page_blocking(
             &mut self.pagination,
@@ -4223,7 +4223,7 @@ impl<'a> MarketSecuritiesPages<'a> {
         )
     }
 
-    /// Собрать все страницы market-level `securities` в один `Vec`.
+    /// Собрать все страницы `securities` на уровне рынка в один `Vec`.
     pub fn try_collect(mut self) -> Result<Vec<Security>, MoexError> {
         collect_pages_blocking(|| self.next_page())
     }
@@ -4236,7 +4236,7 @@ impl<'a> MarketSecuritiesPages<'a> {
 
 #[cfg(feature = "blocking")]
 impl<'a> MarketTradesPages<'a> {
-    /// Получить следующую страницу market-level `trades`.
+    /// Получить следующую страницу `trades` на уровне рынка.
     pub fn next_page(&mut self) -> Result<Option<Vec<Trade>>, MoexError> {
         next_page_blocking(
             &mut self.pagination,
@@ -4248,7 +4248,7 @@ impl<'a> MarketTradesPages<'a> {
         )
     }
 
-    /// Собрать все страницы market-level `trades` в один `Vec`.
+    /// Собрать все страницы `trades` на уровне рынка в один `Vec`.
     pub fn try_collect(mut self) -> Result<Vec<Trade>, MoexError> {
         collect_pages_blocking(|| self.next_page())
     }
@@ -4452,18 +4452,18 @@ where
 
 #[cfg(feature = "blocking")]
 impl<'a> OwnedIndexScope<'a> {
-    /// Идентификатор индекса текущего owning-scope.
+    /// Идентификатор индекса текущего контекста.
     pub fn indexid(&self) -> &IndexId {
         &self.indexid
     }
 
-    /// Получить состав индекса (`analytics`) по текущему owning-scope.
+    /// Получить состав индекса (`analytics`) для текущего контекста.
     pub fn analytics(&self, page_request: PageRequest) -> Result<Vec<IndexAnalytics>, MoexError> {
         self.client
             .index_analytics_query(&self.indexid, page_request)
     }
 
-    /// Создать ленивый paginator страниц `analytics` для текущего индекса.
+    /// Создать ленивый пагинатор страниц `analytics` для текущего индекса.
     pub fn analytics_pages(&self, page_limit: NonZeroU32) -> IndexAnalyticsPages<'_> {
         self.client.index_analytics_pages(&self.indexid, page_limit)
     }
@@ -4471,7 +4471,7 @@ impl<'a> OwnedIndexScope<'a> {
 
 #[cfg(feature = "blocking")]
 impl<'a> OwnedEngineScope<'a> {
-    /// Имя торгового движка текущего owning-scope.
+    /// Имя торгового движка текущего контекста.
     pub fn engine(&self) -> &EngineName {
         &self.engine
     }
@@ -4500,7 +4500,7 @@ impl<'a> OwnedEngineScope<'a> {
         })
     }
 
-    /// Shortcut для часто используемого рынка `shares`.
+    /// Сокращение для часто используемого рынка `shares`.
     pub fn shares(self) -> Result<OwnedMarketScope<'a>, ParseMarketNameError> {
         self.market("shares")
     }
@@ -4508,12 +4508,12 @@ impl<'a> OwnedEngineScope<'a> {
 
 #[cfg(feature = "blocking")]
 impl<'a> OwnedMarketScope<'a> {
-    /// Имя торгового движка текущего owning-scope.
+    /// Имя торгового движка текущего контекста.
     pub fn engine(&self) -> &EngineName {
         &self.engine
     }
 
-    /// Имя рынка текущего owning-scope.
+    /// Имя рынка текущего контекста.
     pub fn market(&self) -> &MarketName {
         &self.market
     }
@@ -4529,24 +4529,24 @@ impl<'a> OwnedMarketScope<'a> {
             .market_securities_query(&self.engine, &self.market, page_request)
     }
 
-    /// Создать ленивый paginator страниц market-level `securities`.
+    /// Создать ленивый пагинатор страниц `securities` на уровне рынка.
     pub fn securities_pages(&self, page_limit: NonZeroU32) -> MarketSecuritiesPages<'_> {
         self.client
             .market_securities_pages(&self.engine, &self.market, page_limit)
     }
 
-    /// Получить market-level стакан (`orderbook`) для текущего рынка.
+    /// Получить стакан на уровне рынка (`orderbook`) для текущего рынка.
     pub fn orderbook(&self) -> Result<Vec<OrderbookLevel>, MoexError> {
         self.client.market_orderbook(&self.engine, &self.market)
     }
 
-    /// Получить market-level сделки (`trades`) для текущего рынка.
+    /// Получить сделки на уровне рынка (`trades`) для текущего рынка.
     pub fn trades(&self, page_request: PageRequest) -> Result<Vec<Trade>, MoexError> {
         self.client
             .market_trades_query(&self.engine, &self.market, page_request)
     }
 
-    /// Создать ленивый paginator страниц market-level `trades`.
+    /// Создать ленивый пагинатор страниц `trades` на уровне рынка.
     pub fn trades_pages(&self, page_limit: NonZeroU32) -> MarketTradesPages<'_> {
         self.client
             .market_trades_pages(&self.engine, &self.market, page_limit)
@@ -4558,7 +4558,7 @@ impl<'a> OwnedMarketScope<'a> {
             .secstats_query(&self.engine, &self.market, page_request)
     }
 
-    /// Создать ленивый paginator страниц `secstats`.
+    /// Создать ленивый пагинатор страниц `secstats`.
     pub fn secstats_pages(&self, page_limit: NonZeroU32) -> SecStatsPages<'_> {
         self.client
             .secstats_pages(&self.engine, &self.market, page_limit)
@@ -4603,34 +4603,34 @@ impl<'a> OwnedMarketScope<'a> {
 
 #[cfg(feature = "blocking")]
 impl<'a> OwnedBoardScope<'a> {
-    /// Имя торгового движка текущего owning-scope.
+    /// Имя торгового движка текущего контекста.
     pub fn engine(&self) -> &EngineName {
         &self.engine
     }
 
-    /// Имя рынка текущего owning-scope.
+    /// Имя рынка текущего контекста.
     pub fn market(&self) -> &MarketName {
         &self.market
     }
 
-    /// Идентификатор режима торгов текущего owning-scope.
+    /// Идентификатор режима торгов текущего контекста.
     pub fn board(&self) -> &BoardId {
         &self.board
     }
 
-    /// Получить инструменты (`securities`) по текущему owning-scope.
+    /// Получить инструменты (`securities`) для текущего контекста.
     pub fn securities(&self, page_request: PageRequest) -> Result<Vec<Security>, MoexError> {
         self.client
             .securities_query(&self.engine, &self.market, &self.board, page_request)
     }
 
-    /// Создать ленивый paginator страниц `securities` по текущему owning-scope.
+    /// Создать ленивый пагинатор страниц `securities` для текущего контекста.
     pub fn securities_pages(&self, page_limit: NonZeroU32) -> SecuritiesPages<'_> {
         self.client
             .securities_pages(&self.engine, &self.market, &self.board, page_limit)
     }
 
-    /// Получить снимки инструментов (`LOTSIZE` и `LAST`) для текущего owning-scope.
+    /// Получить снимки инструментов (`LOTSIZE` и `LAST`) для текущего контекста.
     pub fn snapshots(&self) -> Result<Vec<SecuritySnapshot>, MoexError> {
         self.client
             .board_snapshots(&self.engine, &self.market, &self.board)
@@ -4655,7 +4655,7 @@ impl<'a> OwnedBoardScope<'a> {
 
 #[cfg(feature = "blocking")]
 impl<'a> OwnedSecurityResourceScope<'a> {
-    /// Идентификатор инструмента текущего owning-scope.
+    /// Идентификатор инструмента текущего контекста.
     pub fn secid(&self) -> &SecId {
         &self.security
     }
@@ -4673,7 +4673,7 @@ impl<'a> OwnedSecurityResourceScope<'a> {
 
 #[cfg(feature = "blocking")]
 impl<'a> OwnedSecurityScope<'a> {
-    /// Идентификатор инструмента текущего owning-scope.
+    /// Идентификатор инструмента текущего контекста.
     pub fn security(&self) -> &SecId {
         &self.security
     }
@@ -4704,7 +4704,7 @@ impl<'a> OwnedSecurityScope<'a> {
     }
 
     #[cfg(feature = "history")]
-    /// Создать ленивый paginator страниц `history` по текущему инструменту.
+    /// Создать ленивый пагинатор страниц `history` по текущему инструменту.
     pub fn history_pages(&self, page_limit: NonZeroU32) -> HistoryPages<'_> {
         self.client.history_pages(
             &self.engine,
@@ -4732,7 +4732,7 @@ impl<'a> OwnedSecurityScope<'a> {
         )
     }
 
-    /// Создать ленивый paginator страниц `trades` по текущему инструменту.
+    /// Создать ленивый пагинатор страниц `trades` по текущему инструменту.
     pub fn trades_pages(&self, page_limit: NonZeroU32) -> TradesPages<'_> {
         self.client.trades_pages(
             &self.engine,
@@ -4759,7 +4759,7 @@ impl<'a> OwnedSecurityScope<'a> {
         )
     }
 
-    /// Создать ленивый paginator `candles` по текущему инструменту.
+    /// Создать ленивый пагинатор страниц `candles` по текущему инструменту.
     pub fn candles_pages(&self, query: CandleQuery, page_limit: NonZeroU32) -> CandlesPages<'_> {
         self.client.candles_pages(
             &self.engine,
@@ -4774,17 +4774,17 @@ impl<'a> OwnedSecurityScope<'a> {
 
 #[cfg(feature = "blocking")]
 impl<'a> OwnedMarketSecurityScope<'a> {
-    /// Имя торгового движка текущего owning-scope.
+    /// Имя торгового движка текущего контекста.
     pub fn engine(&self) -> &EngineName {
         &self.engine
     }
 
-    /// Имя рынка текущего owning-scope.
+    /// Имя рынка текущего контекста.
     pub fn market(&self) -> &MarketName {
         &self.market
     }
 
-    /// Идентификатор инструмента текущего owning-scope.
+    /// Идентификатор инструмента текущего контекста.
     pub fn security(&self) -> &SecId {
         &self.security
     }
@@ -4817,7 +4817,7 @@ fn apply_iss_request_options(query: &mut Vec<(Box<str>, Box<str>)>, options: Iss
     }
 }
 
-/// Нормализовать raw endpoint-path к виду `relative/path.json`.
+/// Нормализовать путь raw endpoint-а к виду `relative/path.json`.
 ///
 /// Запрещает query-string в пути и позволяет передавать как `iss/...`,
 /// так и путь без префикса.
@@ -4837,7 +4837,7 @@ pub(super) fn normalize_raw_endpoint_path(path: Option<&str>) -> Result<Box<str>
         });
     }
 
-    // Поддерживаем пути вида `/iss/...` и `iss/...`, чтобы API builder-а был гибким.
+    // Поддерживаем пути вида `/iss/...` и `iss/...`, чтобы API builder'а оставался гибким.
     let without_slash = trimmed.trim_start_matches('/');
     let endpoint = without_slash
         .strip_prefix("iss/")

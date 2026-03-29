@@ -1,4 +1,4 @@
-//! Клиент для HTTP-взаимодействия с ISS API и ошибки транспортного уровня.
+//! HTTP-клиент для ISS API и ошибки транспортного уровня.
 
 #[cfg(any(feature = "async", feature = "blocking"))]
 mod client;
@@ -23,10 +23,10 @@ use crate::models::{
     ParseSecuritySnapshotError, ParseSiteNewsError, ParseTradeError, ParseTurnoverError, SecId,
 };
 
-/// Асинхронный ленивый paginator по страницам `history`.
+/// Асинхронный ленивый пагинатор по страницам `history`.
 #[cfg(all(feature = "async", feature = "history"))]
 pub use client::AsyncHistoryPages;
-/// Блокирующий ленивый paginator по страницам `history`.
+/// Блокирующий ленивый пагинатор по страницам `history`.
 #[cfg(all(feature = "blocking", feature = "history"))]
 pub use client::HistoryPages;
 /// Асинхронные HTTP-клиенты ISS API.
@@ -39,7 +39,7 @@ pub use client::{
     AsyncRawIssRequestBuilder, AsyncSecStatsPages, AsyncSecuritiesPages, AsyncTradesPages,
 };
 #[cfg(all(feature = "async", feature = "news"))]
-/// Асинхронные paginator-ы новостных endpoint-ов.
+/// Асинхронные пагинаторы новостных endpoint-ов.
 pub use client::{AsyncEventsPages, AsyncSiteNewsPages};
 /// Блокирующие HTTP-клиенты ISS API.
 #[cfg(feature = "blocking")]
@@ -50,19 +50,19 @@ pub use client::{
     SecStatsPages, SecuritiesPages, TradesPages,
 };
 #[cfg(all(feature = "blocking", feature = "news"))]
-/// Блокирующие paginator-ы новостных endpoint-ов.
+/// Блокирующие пагинаторы новостных endpoint-ов.
 pub use client::{EventsPages, SiteNewsPages};
 
 /// Явное имя блокирующего ISS-клиента.
 #[cfg(feature = "blocking")]
 pub type BlockingMoexClient = client::BlockingMoexClient;
-/// Явное имя builder-а блокирующего ISS-клиента.
+/// Явное имя типа builder для блокирующего ISS-клиента.
 #[cfg(feature = "blocking")]
 pub type BlockingMoexClientBuilder = client::BlockingMoexClientBuilder;
 
-/// Типизированный идентификатор ISS endpoint-а для raw-запросов.
+/// Типизированное описание ISS endpoint-а для raw-запросов.
 ///
-/// Позволяет строить raw-запросы без ручной сборки path-строк.
+/// Позволяет строить raw-запросы без ручной сборки строк пути.
 #[derive(Debug, Clone, Copy)]
 pub enum IssEndpoint<'a> {
     /// `/iss/statistics/engines/stock/markets/index/analytics.json` (`indices`).
@@ -301,7 +301,7 @@ pub struct RetryPolicy {
 }
 
 impl RetryPolicy {
-    /// Создать политику повторов с числом попыток и delay по умолчанию.
+    /// Создать политику повторов с заданным числом попыток и паузой по умолчанию.
     ///
     /// Значение delay по умолчанию — `400ms`.
     pub fn new(max_attempts: NonZeroU32) -> Self {
@@ -334,7 +334,7 @@ impl Default for RetryPolicy {
     }
 }
 
-/// Выполнить blocking-операцию с повтором retryable-ошибок.
+/// Выполнить блокирующую операцию с повторами retryable-ошибок.
 ///
 /// Повтор выполняется только для [`MoexError::is_retryable`].
 pub fn with_retry<T, F>(policy: RetryPolicy, mut action: F) -> Result<T, MoexError>
@@ -354,7 +354,7 @@ where
     }
 }
 
-/// Выполнить async-операцию с повтором retryable-ошибок.
+/// Выполнить асинхронную операцию с повторами retryable-ошибок.
 ///
 /// `sleep` задаётся вызывающим кодом, чтобы библиотека не навязывала runtime.
 #[cfg(feature = "async")]
@@ -391,12 +391,12 @@ pub struct RateLimit {
 }
 
 impl RateLimit {
-    /// Создать limit из минимального интервала между запросами.
+    /// Создать ограничение из минимального интервала между запросами.
     pub fn every(min_interval: Duration) -> Self {
         Self { min_interval }
     }
 
-    /// Создать limit из числа запросов в секунду.
+    /// Создать ограничение из числа запросов в секунду.
     ///
     /// Интервал округляется вверх до целого числа наносекунд.
     pub fn per_second(requests_per_second: NonZeroU32) -> Self {
@@ -414,14 +414,14 @@ impl RateLimit {
 }
 
 #[derive(Debug, Clone)]
-/// Состояние rate-limit для последовательности запросов.
+/// Состояние rate limit для последовательности запросов.
 pub struct RateLimiter {
     limit: RateLimit,
     next_allowed_at: Option<Instant>,
 }
 
 impl RateLimiter {
-    /// Создать новый limiter с заданным ограничением.
+    /// Создать новый ограничитель с заданным лимитом.
     pub fn new(limit: RateLimit) -> Self {
         Self {
             limit,
@@ -576,7 +576,7 @@ impl RawIssResponse {
     }
 }
 
-/// Выполнить blocking-операцию c соблюдением [`RateLimiter`].
+/// Выполнить блокирующую операцию с соблюдением [`RateLimiter`].
 pub fn with_rate_limit<T, F>(limiter: &mut RateLimiter, action: F) -> T
 where
     F: FnOnce() -> T,
@@ -588,7 +588,7 @@ where
     action()
 }
 
-/// Выполнить async-операцию c соблюдением [`RateLimiter`].
+/// Выполнить асинхронную операцию с соблюдением [`RateLimiter`].
 ///
 /// `sleep` задаётся приложением, чтобы библиотека не требовала конкретный runtime.
 #[cfg(feature = "async")]

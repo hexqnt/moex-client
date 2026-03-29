@@ -29,7 +29,7 @@ struct RawIssTableRowsPayload {
 }
 
 #[derive(Debug)]
-/// Разобранные top-level блоки ISS payload-а для декодирования нескольких таблиц.
+/// Разобранные верхнеуровневые блоки ISS payload-а для декодирования нескольких таблиц.
 ///
 /// Позволяет один раз разобрать payload и затем извлекать таблицы через
 /// [`RawTables::take_rows`] без повторного разбора всего JSON-документа.
@@ -39,17 +39,17 @@ pub struct RawTables {
 }
 
 impl RawTables {
-    /// Количество top-level блоков в payload-е.
+    /// Количество верхнеуровневых блоков в payload-е.
     pub fn len(&self) -> usize {
         self.blocks.len()
     }
 
-    /// Проверить, что payload не содержит top-level блоков.
+    /// Проверить, что payload не содержит верхнеуровневых блоков.
     pub fn is_empty(&self) -> bool {
         self.blocks.is_empty()
     }
 
-    /// Имена top-level блоков payload-а.
+    /// Имена верхнеуровневых блоков payload-а.
     ///
     /// Итератор отражает текущее состояние кэша: после `take_rows(...)`
     /// соответствующее имя больше не возвращается.
@@ -59,7 +59,7 @@ impl RawTables {
 
     /// Декодировать строки выбранной таблицы и удалить её из кэша.
     ///
-    /// Метод потребляет только выбранный top-level блок и не вызывает
+    /// Метод потребляет только выбранный верхнеуровневый блок и не вызывает
     /// повторный разбор всего payload-а.
     pub fn take_rows<T>(&mut self, table: impl Into<String>) -> Result<Vec<T>, MoexError>
     where
@@ -88,7 +88,7 @@ impl RawTables {
 }
 
 #[derive(Debug)]
-/// Borrowed-представление ISS-таблицы без промежуточного `Value`.
+/// Заимствованное представление ISS-таблицы без промежуточного `Value`.
 pub struct RawTableView<'a> {
     columns: Vec<Cow<'a, str>>,
     data: Vec<Vec<&'a RawValue>>,
@@ -201,7 +201,7 @@ fn decode_single_raw_table_payload(
 fn decode_top_level_raw_blocks(
     payload: &str,
 ) -> Result<HashMap<Box<str>, Box<RawValue>>, serde_json::Error> {
-    // Сохраняем каждый top-level блок как `RawValue`, чтобы декодировать
+    // Сохраняем каждый верхнеуровневый блок как `RawValue`, чтобы декодировать
     // конкретные таблицы позже по запросу пользователя.
     serde_json::from_str(payload)
 }
