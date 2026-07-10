@@ -39,6 +39,17 @@ use super::{
 #[cfg(any(feature = "blocking", feature = "async"))]
 use super::{RateLimit, RateLimiter};
 
+#[cfg(feature = "async")]
+type AsyncSleepFuture = std::pin::Pin<Box<dyn std::future::Future<Output = ()> + 'static>>;
+
+#[cfg(feature = "async")]
+type AsyncRateLimitSleep = std::sync::Arc<dyn Fn(Duration) -> AsyncSleepFuture + Send + Sync>;
+
+enum PaginationAdvance {
+    YieldPage,
+    EndOfPages,
+}
+
 /// Блокирующий клиент ISS API Московской биржи.
 ///
 /// Клиент хранит базовый URL, режим выдачи `iss.meta` и переиспользуемый
@@ -49,669 +60,6 @@ pub struct BlockingMoexClient {
     metadata: bool,
     client: Client,
     rate_limiter: Option<Mutex<RateLimiter>>,
-}
-
-/// Builder для конфигурации [`BlockingMoexClient`].
-#[cfg(feature = "blocking")]
-pub struct BlockingMoexClientBuilder {
-    base_url: Option<Url>,
-    metadata: bool,
-    client: Option<Client>,
-    http_client: ClientBuilder,
-    rate_limit: Option<RateLimit>,
-}
-
-/// Асинхронный клиент ISS API Московской биржи.
-///
-/// Клиент хранит базовый URL, режим выдачи `iss.meta` и переиспользуемый
-/// экземпляр `reqwest::Client`.
-#[cfg(feature = "async")]
-pub struct AsyncMoexClient {
-    base_url: Url,
-    metadata: bool,
-    client: reqwest::Client,
-    rate_limit: Option<AsyncRateLimitState>,
-}
-
-/// Builder для конфигурации [`AsyncMoexClient`].
-#[cfg(feature = "async")]
-pub struct AsyncMoexClientBuilder {
-    base_url: Option<Url>,
-    metadata: bool,
-    client: Option<reqwest::Client>,
-    http_client: reqwest::ClientBuilder,
-    rate_limit: Option<RateLimit>,
-    rate_limit_sleep: Option<AsyncRateLimitSleep>,
-}
-
-#[cfg(feature = "async")]
-type AsyncSleepFuture = std::pin::Pin<Box<dyn std::future::Future<Output = ()> + 'static>>;
-
-#[cfg(feature = "async")]
-type AsyncRateLimitSleep = std::sync::Arc<dyn Fn(Duration) -> AsyncSleepFuture + Send + Sync>;
-
-#[cfg(feature = "async")]
-struct AsyncRateLimitState {
-    limiter: Mutex<RateLimiter>,
-    sleep: AsyncRateLimitSleep,
-}
-
-/// Универсальный builder для произвольных ISS endpoint-ов.
-///
-/// Нужен как низкоуровневый путь для endpoint-ов, которые пока не покрыты
-/// строгим типизированным API.
-#[cfg(feature = "blocking")]
-pub struct RawIssRequestBuilder<'a> {
-    client: &'a BlockingMoexClient,
-    path: Option<Box<str>>,
-    query: Vec<(Box<str>, Box<str>)>,
-}
-
-/// Асинхронный универсальный builder для произвольных ISS endpoint-ов.
-#[cfg(feature = "async")]
-pub struct AsyncRawIssRequestBuilder<'a> {
-    client: &'a AsyncMoexClient,
-    path: Option<Box<str>>,
-    query: Vec<(Box<str>, Box<str>)>,
-}
-
-/// Асинхронный ленивый пагинатор по страницам `index_analytics`.
-#[cfg(feature = "async")]
-pub struct AsyncIndexAnalyticsPages<'a> {
-    client: &'a AsyncMoexClient,
-    indexid: &'a IndexId,
-    pagination: PaginationTracker<(chrono::NaiveDate, SecId)>,
-}
-
-/// Асинхронный ленивый пагинатор по страницам `securities`.
-#[cfg(feature = "async")]
-pub struct AsyncSecuritiesPages<'a> {
-    client: &'a AsyncMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    board: &'a BoardId,
-    pagination: PaginationTracker<SecId>,
-}
-
-/// Асинхронный ленивый пагинатор по страницам глобального `securities`.
-#[cfg(feature = "async")]
-pub struct AsyncGlobalSecuritiesPages<'a> {
-    client: &'a AsyncMoexClient,
-    pagination: PaginationTracker<SecId>,
-}
-
-/// Асинхронный ленивый пагинатор по страницам `sitenews`.
-#[cfg(all(feature = "async", feature = "news"))]
-pub struct AsyncSiteNewsPages<'a> {
-    client: &'a AsyncMoexClient,
-    pagination: PaginationTracker<u64>,
-}
-
-/// Асинхронный ленивый пагинатор по страницам `events`.
-#[cfg(all(feature = "async", feature = "news"))]
-pub struct AsyncEventsPages<'a> {
-    client: &'a AsyncMoexClient,
-    pagination: PaginationTracker<u64>,
-}
-
-/// Асинхронный ленивый пагинатор по страницам `securities` на уровне рынка.
-#[cfg(feature = "async")]
-pub struct AsyncMarketSecuritiesPages<'a> {
-    client: &'a AsyncMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    pagination: PaginationTracker<SecId>,
-}
-
-/// Асинхронный ленивый пагинатор по страницам `trades` на уровне рынка.
-#[cfg(feature = "async")]
-pub struct AsyncMarketTradesPages<'a> {
-    client: &'a AsyncMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    pagination: PaginationTracker<u64>,
-}
-
-/// Асинхронный ленивый пагинатор по страницам `trades`.
-#[cfg(feature = "async")]
-pub struct AsyncTradesPages<'a> {
-    client: &'a AsyncMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    board: &'a BoardId,
-    security: &'a SecId,
-    pagination: PaginationTracker<u64>,
-}
-
-/// Асинхронный ленивый пагинатор по страницам `history`.
-#[cfg(all(feature = "async", feature = "history"))]
-pub struct AsyncHistoryPages<'a> {
-    client: &'a AsyncMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    board: &'a BoardId,
-    security: &'a SecId,
-    pagination: PaginationTracker<chrono::NaiveDate>,
-}
-
-/// Асинхронный ленивый пагинатор по страницам `secstats`.
-#[cfg(feature = "async")]
-pub struct AsyncSecStatsPages<'a> {
-    client: &'a AsyncMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    pagination: PaginationTracker<(SecId, BoardId)>,
-}
-
-/// Асинхронный ленивый пагинатор по страницам `candles`.
-#[cfg(feature = "async")]
-pub struct AsyncCandlesPages<'a> {
-    client: &'a AsyncMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    board: &'a BoardId,
-    security: &'a SecId,
-    query: CandleQuery,
-    pagination: PaginationTracker<chrono::NaiveDateTime>,
-}
-
-/// Ленивый пагинатор по страницам `index_analytics`.
-#[cfg(feature = "blocking")]
-pub struct IndexAnalyticsPages<'a> {
-    client: &'a BlockingMoexClient,
-    indexid: &'a IndexId,
-    pagination: PaginationTracker<(chrono::NaiveDate, SecId)>,
-}
-
-/// Ленивый пагинатор по страницам `securities`.
-#[cfg(feature = "blocking")]
-pub struct SecuritiesPages<'a> {
-    client: &'a BlockingMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    board: &'a BoardId,
-    pagination: PaginationTracker<SecId>,
-}
-
-/// Ленивый пагинатор по страницам глобального `securities`.
-#[cfg(feature = "blocking")]
-pub struct GlobalSecuritiesPages<'a> {
-    client: &'a BlockingMoexClient,
-    pagination: PaginationTracker<SecId>,
-}
-
-/// Ленивый пагинатор по страницам `sitenews`.
-#[cfg(all(feature = "blocking", feature = "news"))]
-pub struct SiteNewsPages<'a> {
-    client: &'a BlockingMoexClient,
-    pagination: PaginationTracker<u64>,
-}
-
-/// Ленивый пагинатор по страницам `events`.
-#[cfg(all(feature = "blocking", feature = "news"))]
-pub struct EventsPages<'a> {
-    client: &'a BlockingMoexClient,
-    pagination: PaginationTracker<u64>,
-}
-
-/// Ленивый пагинатор по страницам `securities` на уровне рынка.
-#[cfg(feature = "blocking")]
-pub struct MarketSecuritiesPages<'a> {
-    client: &'a BlockingMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    pagination: PaginationTracker<SecId>,
-}
-
-/// Ленивый пагинатор по страницам `trades` на уровне рынка.
-#[cfg(feature = "blocking")]
-pub struct MarketTradesPages<'a> {
-    client: &'a BlockingMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    pagination: PaginationTracker<u64>,
-}
-
-/// Ленивый пагинатор по страницам `trades`.
-#[cfg(feature = "blocking")]
-pub struct TradesPages<'a> {
-    client: &'a BlockingMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    board: &'a BoardId,
-    security: &'a SecId,
-    pagination: PaginationTracker<u64>,
-}
-
-/// Ленивый пагинатор по страницам `history`.
-#[cfg(all(feature = "blocking", feature = "history"))]
-pub struct HistoryPages<'a> {
-    client: &'a BlockingMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    board: &'a BoardId,
-    security: &'a SecId,
-    pagination: PaginationTracker<chrono::NaiveDate>,
-}
-
-/// Ленивый пагинатор по страницам `secstats`.
-#[cfg(feature = "blocking")]
-pub struct SecStatsPages<'a> {
-    client: &'a BlockingMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    pagination: PaginationTracker<(SecId, BoardId)>,
-}
-
-/// Ленивый пагинатор по страницам `candles`.
-#[cfg(feature = "blocking")]
-pub struct CandlesPages<'a> {
-    client: &'a BlockingMoexClient,
-    engine: &'a EngineName,
-    market: &'a MarketName,
-    board: &'a BoardId,
-    security: &'a SecId,
-    query: CandleQuery,
-    pagination: PaginationTracker<chrono::NaiveDateTime>,
-}
-
-#[derive(Clone)]
-/// Асинхронный владеющий контекст для `indexid`.
-///
-/// Удобен для fluent-цепочек, где вход передаётся как `impl TryInto<IndexId>`.
-#[cfg(feature = "async")]
-pub struct AsyncOwnedIndexScope<'a> {
-    client: &'a AsyncMoexClient,
-    indexid: IndexId,
-}
-
-#[derive(Clone)]
-/// Асинхронный владеющий контекст для `engine`.
-#[cfg(feature = "async")]
-pub struct AsyncOwnedEngineScope<'a> {
-    client: &'a AsyncMoexClient,
-    engine: EngineName,
-}
-
-#[derive(Clone)]
-/// Асинхронный владеющий контекст для `engine/market`.
-#[cfg(feature = "async")]
-pub struct AsyncOwnedMarketScope<'a> {
-    client: &'a AsyncMoexClient,
-    engine: EngineName,
-    market: MarketName,
-}
-
-#[derive(Clone)]
-/// Асинхронный владеющий контекст для `engine/market/security`.
-#[cfg(feature = "async")]
-pub struct AsyncOwnedMarketSecurityScope<'a> {
-    client: &'a AsyncMoexClient,
-    engine: EngineName,
-    market: MarketName,
-    security: SecId,
-}
-
-#[derive(Clone)]
-/// Асинхронный владеющий контекст для `engine/market/board`.
-#[cfg(feature = "async")]
-pub struct AsyncOwnedBoardScope<'a> {
-    client: &'a AsyncMoexClient,
-    engine: EngineName,
-    market: MarketName,
-    board: BoardId,
-}
-
-#[derive(Clone)]
-/// Асинхронный владеющий контекст для `securities/{secid}`.
-#[cfg(feature = "async")]
-pub struct AsyncOwnedSecurityResourceScope<'a> {
-    client: &'a AsyncMoexClient,
-    security: SecId,
-}
-
-#[derive(Clone)]
-/// Асинхронный владеющий контекст для `engine/market/board/security`.
-#[cfg(feature = "async")]
-pub struct AsyncOwnedSecurityScope<'a> {
-    client: &'a AsyncMoexClient,
-    engine: EngineName,
-    market: MarketName,
-    board: BoardId,
-    security: SecId,
-}
-
-#[derive(Clone)]
-/// Блокирующий владеющий контекст для `indexid`.
-///
-/// Удобен для fluent-цепочек, где вход передаётся как `impl TryInto<IndexId>`.
-#[cfg(feature = "blocking")]
-pub struct OwnedIndexScope<'a> {
-    client: &'a BlockingMoexClient,
-    indexid: IndexId,
-}
-
-#[derive(Clone)]
-/// Блокирующий владеющий контекст для `engine`.
-#[cfg(feature = "blocking")]
-pub struct OwnedEngineScope<'a> {
-    client: &'a BlockingMoexClient,
-    engine: EngineName,
-}
-
-#[derive(Clone)]
-/// Блокирующий владеющий контекст для `engine/market`.
-#[cfg(feature = "blocking")]
-pub struct OwnedMarketScope<'a> {
-    client: &'a BlockingMoexClient,
-    engine: EngineName,
-    market: MarketName,
-}
-
-#[derive(Clone)]
-/// Блокирующий владеющий контекст для `engine/market/security`.
-#[cfg(feature = "blocking")]
-pub struct OwnedMarketSecurityScope<'a> {
-    client: &'a BlockingMoexClient,
-    engine: EngineName,
-    market: MarketName,
-    security: SecId,
-}
-
-#[derive(Clone)]
-/// Блокирующий владеющий контекст для `engine/market/board`.
-#[cfg(feature = "blocking")]
-pub struct OwnedBoardScope<'a> {
-    client: &'a BlockingMoexClient,
-    engine: EngineName,
-    market: MarketName,
-    board: BoardId,
-}
-
-#[derive(Clone)]
-/// Блокирующий владеющий контекст для `securities/{secid}`.
-#[cfg(feature = "blocking")]
-pub struct OwnedSecurityResourceScope<'a> {
-    client: &'a BlockingMoexClient,
-    security: SecId,
-}
-
-#[derive(Clone)]
-/// Блокирующий владеющий контекст для `engine/market/board/security`.
-#[cfg(feature = "blocking")]
-pub struct OwnedSecurityScope<'a> {
-    client: &'a BlockingMoexClient,
-    engine: EngineName,
-    market: MarketName,
-    board: BoardId,
-    security: SecId,
-}
-
-struct PaginationTracker<K> {
-    endpoint: Box<str>,
-    page_limit: NonZeroU32,
-    repeat_page_policy: RepeatPagePolicy,
-    start: u32,
-    first_key_on_previous_page: Option<K>,
-    finished: bool,
-}
-
-enum PaginationAdvance {
-    YieldPage,
-    EndOfPages,
-}
-
-#[cfg(any(feature = "blocking", feature = "async"))]
-fn resolve_base_url_or_default(base_url: Option<Url>) -> Result<Url, MoexError> {
-    match base_url {
-        Some(base_url) => Ok(base_url),
-        None => Url::parse(BASE_URL).map_err(|source| MoexError::InvalidBaseUrl {
-            base_url: BASE_URL,
-            reason: source.to_string(),
-        }),
-    }
-}
-
-#[cfg(feature = "blocking")]
-fn resolve_blocking_http_client(
-    client: Option<Client>,
-    http_client: ClientBuilder,
-) -> Result<Client, MoexError> {
-    match client {
-        Some(client) => Ok(client),
-        None => http_client
-            .build()
-            .map_err(|source| MoexError::BuildHttpClient { source }),
-    }
-}
-
-#[cfg(feature = "async")]
-fn resolve_async_http_client(
-    client: Option<reqwest::Client>,
-    http_client: reqwest::ClientBuilder,
-) -> Result<reqwest::Client, MoexError> {
-    match client {
-        Some(client) => Ok(client),
-        None => http_client
-            .build()
-            .map_err(|source| MoexError::BuildHttpClient { source }),
-    }
-}
-
-#[cfg(feature = "async")]
-fn resolve_async_rate_limit_state(
-    rate_limit: Option<RateLimit>,
-    rate_limit_sleep: Option<AsyncRateLimitSleep>,
-) -> Result<Option<AsyncRateLimitState>, MoexError> {
-    match rate_limit {
-        Some(limit) => {
-            let sleep = rate_limit_sleep.ok_or(MoexError::MissingAsyncRateLimitSleep)?;
-            Ok(Some(AsyncRateLimitState {
-                limiter: Mutex::new(RateLimiter::new(limit)),
-                sleep,
-            }))
-        }
-        None => Ok(None),
-    }
-}
-
-#[cfg(feature = "blocking")]
-impl BlockingMoexClientBuilder {
-    /// Включить или отключить выдачу `iss.meta`.
-    pub fn metadata(mut self, metadata: bool) -> Self {
-        self.metadata = metadata;
-        self
-    }
-
-    /// Задать явный базовый URL ISS.
-    pub fn base_url(mut self, base_url: Url) -> Self {
-        self.base_url = Some(base_url);
-        self
-    }
-
-    /// Передать готовый `reqwest::blocking::Client`.
-    pub fn client(mut self, client: Client) -> Self {
-        self.client = Some(client);
-        self
-    }
-
-    /// Установить общий таймаут HTTP-запросов.
-    pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.http_client = self.http_client.timeout(timeout);
-        self
-    }
-
-    /// Установить таймаут установления TCP-соединения.
-    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
-        self.http_client = self.http_client.connect_timeout(timeout);
-        self
-    }
-
-    /// Установить заголовок `User-Agent` для всех запросов.
-    pub fn user_agent(mut self, user_agent: impl Into<String>) -> Self {
-        self.http_client = self.http_client.user_agent(user_agent.into());
-        self
-    }
-
-    /// Установить `User-Agent` в формате `{crate_name}/{crate_version}`.
-    pub fn user_agent_from_crate(self) -> Self {
-        self.user_agent(format!(
-            "{}/{}",
-            env!("CARGO_PKG_NAME"),
-            env!("CARGO_PKG_VERSION")
-        ))
-    }
-
-    /// Установить набор заголовков по умолчанию для всех запросов.
-    pub fn default_headers(mut self, headers: HeaderMap) -> Self {
-        self.http_client = self.http_client.default_headers(headers);
-        self
-    }
-
-    /// Добавить proxy для HTTP-клиента.
-    ///
-    /// Метод можно вызывать несколько раз, если требуется набор правил proxy-маршрутизации.
-    pub fn proxy(mut self, proxy: reqwest::Proxy) -> Self {
-        self.http_client = self.http_client.proxy(proxy);
-        self
-    }
-
-    /// Отключить использование proxy из окружения и системных настроек.
-    pub fn no_proxy(mut self) -> Self {
-        self.http_client = self.http_client.no_proxy();
-        self
-    }
-
-    /// Включить ограничение частоты запросов на уровне клиента.
-    ///
-    /// Лимит применяется ко всем endpoint-методам и raw-запросам этого экземпляра клиента.
-    pub fn rate_limit(mut self, rate_limit: RateLimit) -> Self {
-        self.rate_limit = Some(rate_limit);
-        self
-    }
-
-    /// Построить блокирующий клиент ISS.
-    pub fn build(self) -> Result<BlockingMoexClient, MoexError> {
-        let Self {
-            base_url,
-            metadata,
-            client,
-            http_client,
-            rate_limit,
-        } = self;
-        let base_url = resolve_base_url_or_default(base_url)?;
-        let client = resolve_blocking_http_client(client, http_client)?;
-        Ok(BlockingMoexClient::with_base_url_and_rate_limit(
-            client, base_url, metadata, rate_limit,
-        ))
-    }
-}
-
-#[cfg(feature = "async")]
-impl AsyncMoexClientBuilder {
-    /// Включить или отключить выдачу `iss.meta`.
-    pub fn metadata(mut self, metadata: bool) -> Self {
-        self.metadata = metadata;
-        self
-    }
-
-    /// Задать явный базовый URL ISS.
-    pub fn base_url(mut self, base_url: Url) -> Self {
-        self.base_url = Some(base_url);
-        self
-    }
-
-    /// Передать готовый `reqwest::Client`.
-    pub fn client(mut self, client: reqwest::Client) -> Self {
-        self.client = Some(client);
-        self
-    }
-
-    /// Установить общий таймаут HTTP-запросов.
-    pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.http_client = self.http_client.timeout(timeout);
-        self
-    }
-
-    /// Установить таймаут установления TCP-соединения.
-    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
-        self.http_client = self.http_client.connect_timeout(timeout);
-        self
-    }
-
-    /// Установить заголовок `User-Agent` для всех запросов.
-    pub fn user_agent(mut self, user_agent: impl Into<String>) -> Self {
-        self.http_client = self.http_client.user_agent(user_agent.into());
-        self
-    }
-
-    /// Установить `User-Agent` в формате `{crate_name}/{crate_version}`.
-    pub fn user_agent_from_crate(self) -> Self {
-        self.user_agent(format!(
-            "{}/{}",
-            env!("CARGO_PKG_NAME"),
-            env!("CARGO_PKG_VERSION")
-        ))
-    }
-
-    /// Установить набор заголовков по умолчанию для всех запросов.
-    pub fn default_headers(mut self, headers: HeaderMap) -> Self {
-        self.http_client = self.http_client.default_headers(headers);
-        self
-    }
-
-    /// Добавить proxy для HTTP-клиента.
-    ///
-    /// Метод можно вызывать несколько раз, если требуется набор правил proxy-маршрутизации.
-    pub fn proxy(mut self, proxy: reqwest::Proxy) -> Self {
-        self.http_client = self.http_client.proxy(proxy);
-        self
-    }
-
-    /// Отключить использование proxy из окружения и системных настроек.
-    pub fn no_proxy(mut self) -> Self {
-        self.http_client = self.http_client.no_proxy();
-        self
-    }
-
-    /// Включить ограничение частоты запросов на уровне клиента.
-    ///
-    /// Для применения задержек нужно дополнительно передать `sleep` через
-    /// [`Self::rate_limit_sleep`].
-    pub fn rate_limit(mut self, rate_limit: RateLimit) -> Self {
-        self.rate_limit = Some(rate_limit);
-        self
-    }
-
-    /// Задать async-функцию ожидания для использования с [`Self::rate_limit`].
-    ///
-    /// Обычно это функция runtime-а, например `tokio::time::sleep`.
-    pub fn rate_limit_sleep<F, Fut>(mut self, sleep: F) -> Self
-    where
-        F: Fn(Duration) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = ()> + 'static,
-    {
-        self.rate_limit_sleep = Some(std::sync::Arc::new(move |delay| Box::pin(sleep(delay))));
-        self
-    }
-
-    /// Построить асинхронный клиент ISS.
-    pub fn build(self) -> Result<AsyncMoexClient, MoexError> {
-        let Self {
-            base_url,
-            metadata,
-            client,
-            http_client,
-            rate_limit,
-            rate_limit_sleep,
-        } = self;
-        let base_url = resolve_base_url_or_default(base_url)?;
-        let client = resolve_async_http_client(client, http_client)?;
-        let rate_limit = resolve_async_rate_limit_state(rate_limit, rate_limit_sleep)?;
-        Ok(AsyncMoexClient::with_base_url_and_rate_limit(
-            client, base_url, metadata, rate_limit,
-        ))
-    }
 }
 
 #[cfg(feature = "blocking")]
@@ -1839,18 +1187,118 @@ impl BlockingMoexClient {
     }
 }
 
-#[cfg(any(feature = "blocking", feature = "async"))]
-fn lock_rate_limiter(limiter: &Mutex<RateLimiter>) -> std::sync::MutexGuard<'_, RateLimiter> {
-    match limiter.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => poisoned.into_inner(),
+/// Builder для конфигурации [`BlockingMoexClient`].
+#[cfg(feature = "blocking")]
+pub struct BlockingMoexClientBuilder {
+    base_url: Option<Url>,
+    metadata: bool,
+    client: Option<Client>,
+    http_client: ClientBuilder,
+    rate_limit: Option<RateLimit>,
+}
+
+#[cfg(feature = "blocking")]
+impl BlockingMoexClientBuilder {
+    /// Включить или отключить выдачу `iss.meta`.
+    pub fn metadata(mut self, metadata: bool) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
+    /// Задать явный базовый URL ISS.
+    pub fn base_url(mut self, base_url: Url) -> Self {
+        self.base_url = Some(base_url);
+        self
+    }
+
+    /// Передать готовый `reqwest::blocking::Client`.
+    pub fn client(mut self, client: Client) -> Self {
+        self.client = Some(client);
+        self
+    }
+
+    /// Установить общий таймаут HTTP-запросов.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.http_client = self.http_client.timeout(timeout);
+        self
+    }
+
+    /// Установить таймаут установления TCP-соединения.
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        self.http_client = self.http_client.connect_timeout(timeout);
+        self
+    }
+
+    /// Установить заголовок `User-Agent` для всех запросов.
+    pub fn user_agent(mut self, user_agent: impl Into<String>) -> Self {
+        self.http_client = self.http_client.user_agent(user_agent.into());
+        self
+    }
+
+    /// Установить `User-Agent` в формате `{crate_name}/{crate_version}`.
+    pub fn user_agent_from_crate(self) -> Self {
+        self.user_agent(format!(
+            "{}/{}",
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_PKG_VERSION")
+        ))
+    }
+
+    /// Установить набор заголовков по умолчанию для всех запросов.
+    pub fn default_headers(mut self, headers: HeaderMap) -> Self {
+        self.http_client = self.http_client.default_headers(headers);
+        self
+    }
+
+    /// Добавить proxy для HTTP-клиента.
+    ///
+    /// Метод можно вызывать несколько раз, если требуется набор правил proxy-маршрутизации.
+    pub fn proxy(mut self, proxy: reqwest::Proxy) -> Self {
+        self.http_client = self.http_client.proxy(proxy);
+        self
+    }
+
+    /// Отключить использование proxy из окружения и системных настроек.
+    pub fn no_proxy(mut self) -> Self {
+        self.http_client = self.http_client.no_proxy();
+        self
+    }
+
+    /// Включить ограничение частоты запросов на уровне клиента.
+    ///
+    /// Лимит применяется ко всем endpoint-методам и raw-запросам этого экземпляра клиента.
+    pub fn rate_limit(mut self, rate_limit: RateLimit) -> Self {
+        self.rate_limit = Some(rate_limit);
+        self
+    }
+
+    /// Построить блокирующий клиент ISS.
+    pub fn build(self) -> Result<BlockingMoexClient, MoexError> {
+        let Self {
+            base_url,
+            metadata,
+            client,
+            http_client,
+            rate_limit,
+        } = self;
+        let base_url = resolve_base_url_or_default(base_url)?;
+        let client = resolve_blocking_http_client(client, http_client)?;
+        Ok(BlockingMoexClient::with_base_url_and_rate_limit(
+            client, base_url, metadata, rate_limit,
+        ))
     }
 }
 
-#[cfg(any(feature = "blocking", feature = "async"))]
-fn reserve_rate_limit_delay(limiter: &Mutex<RateLimiter>) -> Duration {
-    let mut limiter = lock_rate_limiter(limiter);
-    limiter.reserve_delay()
+/// Асинхронный клиент ISS API Московской биржи.
+///
+/// Клиент хранит базовый URL, режим выдачи `iss.meta` и переиспользуемый
+/// экземпляр `reqwest::Client`.
+#[cfg(feature = "async")]
+pub struct AsyncMoexClient {
+    base_url: Url,
+    metadata: bool,
+    client: reqwest::Client,
+    rate_limit: Option<AsyncRateLimitState>,
 }
 
 #[cfg(feature = "async")]
@@ -3019,6 +2467,141 @@ impl AsyncMoexClient {
     }
 }
 
+/// Builder для конфигурации [`AsyncMoexClient`].
+#[cfg(feature = "async")]
+pub struct AsyncMoexClientBuilder {
+    base_url: Option<Url>,
+    metadata: bool,
+    client: Option<reqwest::Client>,
+    http_client: reqwest::ClientBuilder,
+    rate_limit: Option<RateLimit>,
+    rate_limit_sleep: Option<AsyncRateLimitSleep>,
+}
+
+#[cfg(feature = "async")]
+impl AsyncMoexClientBuilder {
+    /// Включить или отключить выдачу `iss.meta`.
+    pub fn metadata(mut self, metadata: bool) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
+    /// Задать явный базовый URL ISS.
+    pub fn base_url(mut self, base_url: Url) -> Self {
+        self.base_url = Some(base_url);
+        self
+    }
+
+    /// Передать готовый `reqwest::Client`.
+    pub fn client(mut self, client: reqwest::Client) -> Self {
+        self.client = Some(client);
+        self
+    }
+
+    /// Установить общий таймаут HTTP-запросов.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.http_client = self.http_client.timeout(timeout);
+        self
+    }
+
+    /// Установить таймаут установления TCP-соединения.
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        self.http_client = self.http_client.connect_timeout(timeout);
+        self
+    }
+
+    /// Установить заголовок `User-Agent` для всех запросов.
+    pub fn user_agent(mut self, user_agent: impl Into<String>) -> Self {
+        self.http_client = self.http_client.user_agent(user_agent.into());
+        self
+    }
+
+    /// Установить `User-Agent` в формате `{crate_name}/{crate_version}`.
+    pub fn user_agent_from_crate(self) -> Self {
+        self.user_agent(format!(
+            "{}/{}",
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_PKG_VERSION")
+        ))
+    }
+
+    /// Установить набор заголовков по умолчанию для всех запросов.
+    pub fn default_headers(mut self, headers: HeaderMap) -> Self {
+        self.http_client = self.http_client.default_headers(headers);
+        self
+    }
+
+    /// Добавить proxy для HTTP-клиента.
+    ///
+    /// Метод можно вызывать несколько раз, если требуется набор правил proxy-маршрутизации.
+    pub fn proxy(mut self, proxy: reqwest::Proxy) -> Self {
+        self.http_client = self.http_client.proxy(proxy);
+        self
+    }
+
+    /// Отключить использование proxy из окружения и системных настроек.
+    pub fn no_proxy(mut self) -> Self {
+        self.http_client = self.http_client.no_proxy();
+        self
+    }
+
+    /// Включить ограничение частоты запросов на уровне клиента.
+    ///
+    /// Для применения задержек нужно дополнительно передать `sleep` через
+    /// [`Self::rate_limit_sleep`].
+    pub fn rate_limit(mut self, rate_limit: RateLimit) -> Self {
+        self.rate_limit = Some(rate_limit);
+        self
+    }
+
+    /// Задать async-функцию ожидания для использования с [`Self::rate_limit`].
+    ///
+    /// Обычно это функция runtime-а, например `tokio::time::sleep`.
+    pub fn rate_limit_sleep<F, Fut>(mut self, sleep: F) -> Self
+    where
+        F: Fn(Duration) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = ()> + 'static,
+    {
+        self.rate_limit_sleep = Some(std::sync::Arc::new(move |delay| Box::pin(sleep(delay))));
+        self
+    }
+
+    /// Построить асинхронный клиент ISS.
+    pub fn build(self) -> Result<AsyncMoexClient, MoexError> {
+        let Self {
+            base_url,
+            metadata,
+            client,
+            http_client,
+            rate_limit,
+            rate_limit_sleep,
+        } = self;
+        let base_url = resolve_base_url_or_default(base_url)?;
+        let client = resolve_async_http_client(client, http_client)?;
+        let rate_limit = resolve_async_rate_limit_state(rate_limit, rate_limit_sleep)?;
+        Ok(AsyncMoexClient::with_base_url_and_rate_limit(
+            client, base_url, metadata, rate_limit,
+        ))
+    }
+}
+
+#[cfg(feature = "async")]
+struct AsyncRateLimitState {
+    limiter: Mutex<RateLimiter>,
+    sleep: AsyncRateLimitSleep,
+}
+
+/// Универсальный builder для произвольных ISS endpoint-ов.
+///
+/// Нужен как низкоуровневый путь для endpoint-ов, которые пока не покрыты
+/// строгим типизированным API.
+#[cfg(feature = "blocking")]
+pub struct RawIssRequestBuilder<'a> {
+    client: &'a BlockingMoexClient,
+    path: Option<Box<str>>,
+    query: Vec<(Box<str>, Box<str>)>,
+}
+
 #[cfg(feature = "blocking")]
 impl<'a> RawIssRequestBuilder<'a> {
     /// Установить endpoint-path относительно `/iss/`.
@@ -3155,6 +2738,14 @@ impl<'a> RawIssRequestBuilder<'a> {
         }
         Ok((endpoint, endpoint_url))
     }
+}
+
+/// Асинхронный универсальный builder для произвольных ISS endpoint-ов.
+#[cfg(feature = "async")]
+pub struct AsyncRawIssRequestBuilder<'a> {
+    client: &'a AsyncMoexClient,
+    path: Option<Box<str>>,
+    query: Vec<(Box<str>, Box<str>)>,
 }
 
 #[cfg(feature = "async")]
@@ -3299,61 +2890,12 @@ impl<'a> AsyncRawIssRequestBuilder<'a> {
     }
 }
 
-#[cfg(feature = "blocking")]
-fn next_page_blocking<T, K, F, G>(
-    pagination: &mut PaginationTracker<K>,
-    fetch_page: F,
-    first_key_of: G,
-) -> Result<Option<Vec<T>>, MoexError>
-where
-    K: Eq,
-    F: FnOnce(Pagination) -> Result<Vec<T>, MoexError>,
-    G: Fn(&T) -> K,
-{
-    let Some(paging) = pagination.next_page_request() else {
-        return Ok(None);
-    };
-    let page = fetch_page(paging)?;
-    let first_key_on_page = page.first().map(first_key_of);
-    match pagination.advance(page.len(), first_key_on_page)? {
-        PaginationAdvance::YieldPage => Ok(Some(page)),
-        PaginationAdvance::EndOfPages => Ok(None),
-    }
-}
-
+/// Асинхронный ленивый пагинатор по страницам `index_analytics`.
 #[cfg(feature = "async")]
-async fn next_page_async<T, K, F, Fut, G>(
-    pagination: &mut PaginationTracker<K>,
-    fetch_page: F,
-    first_key_of: G,
-) -> Result<Option<Vec<T>>, MoexError>
-where
-    K: Eq,
-    F: FnOnce(Pagination) -> Fut,
-    Fut: std::future::Future<Output = Result<Vec<T>, MoexError>>,
-    G: Fn(&T) -> K,
-{
-    let Some(paging) = pagination.next_page_request() else {
-        return Ok(None);
-    };
-    let page = fetch_page(paging).await?;
-    let first_key_on_page = page.first().map(first_key_of);
-    match pagination.advance(page.len(), first_key_on_page)? {
-        PaginationAdvance::YieldPage => Ok(Some(page)),
-        PaginationAdvance::EndOfPages => Ok(None),
-    }
-}
-
-#[cfg(feature = "blocking")]
-fn collect_pages_blocking<T, F>(mut next_page: F) -> Result<Vec<T>, MoexError>
-where
-    F: FnMut() -> Result<Option<Vec<T>>, MoexError>,
-{
-    let mut items = Vec::new();
-    while let Some(page) = next_page()? {
-        items.extend(page);
-    }
-    Ok(items)
+pub struct AsyncIndexAnalyticsPages<'a> {
+    client: &'a AsyncMoexClient,
+    indexid: &'a IndexId,
+    pagination: PaginationTracker<(chrono::NaiveDate, SecId)>,
 }
 
 #[cfg(feature = "async")]
@@ -3388,6 +2930,16 @@ impl<'a> AsyncIndexAnalyticsPages<'a> {
     }
 }
 
+/// Асинхронный ленивый пагинатор по страницам `securities`.
+#[cfg(feature = "async")]
+pub struct AsyncSecuritiesPages<'a> {
+    client: &'a AsyncMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    board: &'a BoardId,
+    pagination: PaginationTracker<SecId>,
+}
+
 #[cfg(feature = "async")]
 impl<'a> AsyncSecuritiesPages<'a> {
     /// Получить следующую страницу `securities`.
@@ -3420,6 +2972,13 @@ impl<'a> AsyncSecuritiesPages<'a> {
     }
 }
 
+/// Асинхронный ленивый пагинатор по страницам глобального `securities`.
+#[cfg(feature = "async")]
+pub struct AsyncGlobalSecuritiesPages<'a> {
+    client: &'a AsyncMoexClient,
+    pagination: PaginationTracker<SecId>,
+}
+
 #[cfg(feature = "async")]
 impl<'a> AsyncGlobalSecuritiesPages<'a> {
     /// Получить следующую страницу глобального `securities`.
@@ -3447,6 +3006,13 @@ impl<'a> AsyncGlobalSecuritiesPages<'a> {
     pub async fn all(self) -> Result<Vec<Security>, MoexError> {
         self.try_collect().await
     }
+}
+
+/// Асинхронный ленивый пагинатор по страницам `sitenews`.
+#[cfg(all(feature = "async", feature = "news"))]
+pub struct AsyncSiteNewsPages<'a> {
+    client: &'a AsyncMoexClient,
+    pagination: PaginationTracker<u64>,
 }
 
 #[cfg(all(feature = "async", feature = "news"))]
@@ -3478,6 +3044,13 @@ impl<'a> AsyncSiteNewsPages<'a> {
     }
 }
 
+/// Асинхронный ленивый пагинатор по страницам `events`.
+#[cfg(all(feature = "async", feature = "news"))]
+pub struct AsyncEventsPages<'a> {
+    client: &'a AsyncMoexClient,
+    pagination: PaginationTracker<u64>,
+}
+
 #[cfg(all(feature = "async", feature = "news"))]
 impl<'a> AsyncEventsPages<'a> {
     /// Получить следующую страницу `events`.
@@ -3505,6 +3078,15 @@ impl<'a> AsyncEventsPages<'a> {
     pub async fn all(self) -> Result<Vec<Event>, MoexError> {
         self.try_collect().await
     }
+}
+
+/// Асинхронный ленивый пагинатор по страницам `securities` на уровне рынка.
+#[cfg(feature = "async")]
+pub struct AsyncMarketSecuritiesPages<'a> {
+    client: &'a AsyncMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    pagination: PaginationTracker<SecId>,
 }
 
 #[cfg(feature = "async")]
@@ -3539,6 +3121,15 @@ impl<'a> AsyncMarketSecuritiesPages<'a> {
     }
 }
 
+/// Асинхронный ленивый пагинатор по страницам `trades` на уровне рынка.
+#[cfg(feature = "async")]
+pub struct AsyncMarketTradesPages<'a> {
+    client: &'a AsyncMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    pagination: PaginationTracker<u64>,
+}
+
 #[cfg(feature = "async")]
 impl<'a> AsyncMarketTradesPages<'a> {
     /// Получить следующую страницу `trades` на уровне рынка.
@@ -3569,6 +3160,17 @@ impl<'a> AsyncMarketTradesPages<'a> {
     pub async fn all(self) -> Result<Vec<Trade>, MoexError> {
         self.try_collect().await
     }
+}
+
+/// Асинхронный ленивый пагинатор по страницам `trades`.
+#[cfg(feature = "async")]
+pub struct AsyncTradesPages<'a> {
+    client: &'a AsyncMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    board: &'a BoardId,
+    security: &'a SecId,
+    pagination: PaginationTracker<u64>,
 }
 
 #[cfg(feature = "async")]
@@ -3608,6 +3210,17 @@ impl<'a> AsyncTradesPages<'a> {
     }
 }
 
+/// Асинхронный ленивый пагинатор по страницам `history`.
+#[cfg(all(feature = "async", feature = "history"))]
+pub struct AsyncHistoryPages<'a> {
+    client: &'a AsyncMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    board: &'a BoardId,
+    security: &'a SecId,
+    pagination: PaginationTracker<chrono::NaiveDate>,
+}
+
 #[cfg(all(feature = "async", feature = "history"))]
 impl<'a> AsyncHistoryPages<'a> {
     /// Получить следующую страницу `history`.
@@ -3645,6 +3258,15 @@ impl<'a> AsyncHistoryPages<'a> {
     }
 }
 
+/// Асинхронный ленивый пагинатор по страницам `secstats`.
+#[cfg(feature = "async")]
+pub struct AsyncSecStatsPages<'a> {
+    client: &'a AsyncMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    pagination: PaginationTracker<(SecId, BoardId)>,
+}
+
 #[cfg(feature = "async")]
 impl<'a> AsyncSecStatsPages<'a> {
     /// Получить следующую страницу `secstats`.
@@ -3675,6 +3297,18 @@ impl<'a> AsyncSecStatsPages<'a> {
     pub async fn all(self) -> Result<Vec<SecStat>, MoexError> {
         self.try_collect().await
     }
+}
+
+/// Асинхронный ленивый пагинатор по страницам `candles`.
+#[cfg(feature = "async")]
+pub struct AsyncCandlesPages<'a> {
+    client: &'a AsyncMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    board: &'a BoardId,
+    security: &'a SecId,
+    query: CandleQuery,
+    pagination: PaginationTracker<chrono::NaiveDateTime>,
 }
 
 #[cfg(feature = "async")]
@@ -3715,6 +3349,398 @@ impl<'a> AsyncCandlesPages<'a> {
     }
 }
 
+/// Ленивый пагинатор по страницам `index_analytics`.
+#[cfg(feature = "blocking")]
+pub struct IndexAnalyticsPages<'a> {
+    client: &'a BlockingMoexClient,
+    indexid: &'a IndexId,
+    pagination: PaginationTracker<(chrono::NaiveDate, SecId)>,
+}
+
+#[cfg(feature = "blocking")]
+impl<'a> IndexAnalyticsPages<'a> {
+    /// Получить следующую страницу `index_analytics`.
+    pub fn next_page(&mut self) -> Result<Option<Vec<IndexAnalytics>>, MoexError> {
+        next_page_blocking(
+            &mut self.pagination,
+            |pagination| {
+                self.client
+                    .fetch_index_analytics_page(self.indexid, pagination)
+            },
+            |item| (item.trade_session_date(), item.secid().clone()),
+        )
+    }
+
+    /// Собрать все страницы `index_analytics` в один `Vec`.
+    pub fn try_collect(mut self) -> Result<Vec<IndexAnalytics>, MoexError> {
+        collect_pages_blocking(|| self.next_page())
+    }
+
+    /// Алиас для [`Self::try_collect`].
+    pub fn all(self) -> Result<Vec<IndexAnalytics>, MoexError> {
+        self.try_collect()
+    }
+}
+
+/// Ленивый пагинатор по страницам `securities`.
+#[cfg(feature = "blocking")]
+pub struct SecuritiesPages<'a> {
+    client: &'a BlockingMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    board: &'a BoardId,
+    pagination: PaginationTracker<SecId>,
+}
+
+#[cfg(feature = "blocking")]
+impl<'a> SecuritiesPages<'a> {
+    /// Получить следующую страницу `securities`.
+    pub fn next_page(&mut self) -> Result<Option<Vec<Security>>, MoexError> {
+        next_page_blocking(
+            &mut self.pagination,
+            |pagination| {
+                self.client
+                    .fetch_securities_page(self.engine, self.market, self.board, pagination)
+            },
+            |item| item.secid().clone(),
+        )
+    }
+
+    /// Собрать все страницы `securities` в один `Vec`.
+    pub fn try_collect(mut self) -> Result<Vec<Security>, MoexError> {
+        collect_pages_blocking(|| self.next_page())
+    }
+
+    /// Алиас для [`Self::try_collect`].
+    pub fn all(self) -> Result<Vec<Security>, MoexError> {
+        self.try_collect()
+    }
+}
+
+/// Ленивый пагинатор по страницам глобального `securities`.
+#[cfg(feature = "blocking")]
+pub struct GlobalSecuritiesPages<'a> {
+    client: &'a BlockingMoexClient,
+    pagination: PaginationTracker<SecId>,
+}
+
+#[cfg(feature = "blocking")]
+impl<'a> GlobalSecuritiesPages<'a> {
+    /// Получить следующую страницу глобального `securities`.
+    pub fn next_page(&mut self) -> Result<Option<Vec<Security>>, MoexError> {
+        next_page_blocking(
+            &mut self.pagination,
+            |pagination| self.client.fetch_global_securities_page(pagination),
+            |item| item.secid().clone(),
+        )
+    }
+
+    /// Собрать все страницы глобального `securities` в один `Vec`.
+    pub fn try_collect(mut self) -> Result<Vec<Security>, MoexError> {
+        collect_pages_blocking(|| self.next_page())
+    }
+
+    /// Алиас для [`Self::try_collect`].
+    pub fn all(self) -> Result<Vec<Security>, MoexError> {
+        self.try_collect()
+    }
+}
+
+/// Ленивый пагинатор по страницам `sitenews`.
+#[cfg(all(feature = "blocking", feature = "news"))]
+pub struct SiteNewsPages<'a> {
+    client: &'a BlockingMoexClient,
+    pagination: PaginationTracker<u64>,
+}
+
+#[cfg(all(feature = "blocking", feature = "news"))]
+impl<'a> SiteNewsPages<'a> {
+    /// Получить следующую страницу `sitenews`.
+    pub fn next_page(&mut self) -> Result<Option<Vec<SiteNews>>, MoexError> {
+        next_page_blocking(
+            &mut self.pagination,
+            |pagination| self.client.fetch_sitenews_page(pagination),
+            SiteNews::id,
+        )
+    }
+
+    /// Собрать все страницы `sitenews` в один `Vec`.
+    pub fn try_collect(mut self) -> Result<Vec<SiteNews>, MoexError> {
+        collect_pages_blocking(|| self.next_page())
+    }
+
+    /// Алиас для [`Self::try_collect`].
+    pub fn all(self) -> Result<Vec<SiteNews>, MoexError> {
+        self.try_collect()
+    }
+}
+
+/// Ленивый пагинатор по страницам `events`.
+#[cfg(all(feature = "blocking", feature = "news"))]
+pub struct EventsPages<'a> {
+    client: &'a BlockingMoexClient,
+    pagination: PaginationTracker<u64>,
+}
+
+#[cfg(all(feature = "blocking", feature = "news"))]
+impl<'a> EventsPages<'a> {
+    /// Получить следующую страницу `events`.
+    pub fn next_page(&mut self) -> Result<Option<Vec<Event>>, MoexError> {
+        next_page_blocking(
+            &mut self.pagination,
+            |pagination| self.client.fetch_events_page(pagination),
+            Event::id,
+        )
+    }
+
+    /// Собрать все страницы `events` в один `Vec`.
+    pub fn try_collect(mut self) -> Result<Vec<Event>, MoexError> {
+        collect_pages_blocking(|| self.next_page())
+    }
+
+    /// Алиас для [`Self::try_collect`].
+    pub fn all(self) -> Result<Vec<Event>, MoexError> {
+        self.try_collect()
+    }
+}
+
+/// Ленивый пагинатор по страницам `securities` на уровне рынка.
+#[cfg(feature = "blocking")]
+pub struct MarketSecuritiesPages<'a> {
+    client: &'a BlockingMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    pagination: PaginationTracker<SecId>,
+}
+
+#[cfg(feature = "blocking")]
+impl<'a> MarketSecuritiesPages<'a> {
+    /// Получить следующую страницу `securities` на уровне рынка.
+    pub fn next_page(&mut self) -> Result<Option<Vec<Security>>, MoexError> {
+        next_page_blocking(
+            &mut self.pagination,
+            |pagination| {
+                self.client
+                    .fetch_market_securities_page(self.engine, self.market, pagination)
+            },
+            |item| item.secid().clone(),
+        )
+    }
+
+    /// Собрать все страницы `securities` на уровне рынка в один `Vec`.
+    pub fn try_collect(mut self) -> Result<Vec<Security>, MoexError> {
+        collect_pages_blocking(|| self.next_page())
+    }
+
+    /// Алиас для [`Self::try_collect`].
+    pub fn all(self) -> Result<Vec<Security>, MoexError> {
+        self.try_collect()
+    }
+}
+
+/// Ленивый пагинатор по страницам `trades` на уровне рынка.
+#[cfg(feature = "blocking")]
+pub struct MarketTradesPages<'a> {
+    client: &'a BlockingMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    pagination: PaginationTracker<u64>,
+}
+
+#[cfg(feature = "blocking")]
+impl<'a> MarketTradesPages<'a> {
+    /// Получить следующую страницу `trades` на уровне рынка.
+    pub fn next_page(&mut self) -> Result<Option<Vec<Trade>>, MoexError> {
+        next_page_blocking(
+            &mut self.pagination,
+            |pagination| {
+                self.client
+                    .fetch_market_trades_page(self.engine, self.market, pagination)
+            },
+            Trade::tradeno,
+        )
+    }
+
+    /// Собрать все страницы `trades` на уровне рынка в один `Vec`.
+    pub fn try_collect(mut self) -> Result<Vec<Trade>, MoexError> {
+        collect_pages_blocking(|| self.next_page())
+    }
+
+    /// Алиас для [`Self::try_collect`].
+    pub fn all(self) -> Result<Vec<Trade>, MoexError> {
+        self.try_collect()
+    }
+}
+
+/// Ленивый пагинатор по страницам `trades`.
+#[cfg(feature = "blocking")]
+pub struct TradesPages<'a> {
+    client: &'a BlockingMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    board: &'a BoardId,
+    security: &'a SecId,
+    pagination: PaginationTracker<u64>,
+}
+
+#[cfg(feature = "blocking")]
+impl<'a> TradesPages<'a> {
+    /// Получить следующую страницу `trades`.
+    pub fn next_page(&mut self) -> Result<Option<Vec<Trade>>, MoexError> {
+        next_page_blocking(
+            &mut self.pagination,
+            |pagination| {
+                self.client.fetch_trades_page(
+                    self.engine,
+                    self.market,
+                    self.board,
+                    self.security,
+                    pagination,
+                )
+            },
+            Trade::tradeno,
+        )
+    }
+
+    /// Собрать все страницы `trades` в один `Vec`.
+    pub fn try_collect(mut self) -> Result<Vec<Trade>, MoexError> {
+        collect_pages_blocking(|| self.next_page())
+    }
+
+    /// Алиас для [`Self::try_collect`].
+    pub fn all(self) -> Result<Vec<Trade>, MoexError> {
+        self.try_collect()
+    }
+}
+
+/// Ленивый пагинатор по страницам `history`.
+#[cfg(all(feature = "blocking", feature = "history"))]
+pub struct HistoryPages<'a> {
+    client: &'a BlockingMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    board: &'a BoardId,
+    security: &'a SecId,
+    pagination: PaginationTracker<chrono::NaiveDate>,
+}
+
+#[cfg(all(feature = "blocking", feature = "history"))]
+impl<'a> HistoryPages<'a> {
+    /// Получить следующую страницу `history`.
+    pub fn next_page(&mut self) -> Result<Option<Vec<HistoryRecord>>, MoexError> {
+        next_page_blocking(
+            &mut self.pagination,
+            |pagination| {
+                self.client.fetch_history_page(
+                    self.engine,
+                    self.market,
+                    self.board,
+                    self.security,
+                    pagination,
+                )
+            },
+            HistoryRecord::tradedate,
+        )
+    }
+
+    /// Собрать все страницы `history` в один `Vec`.
+    pub fn try_collect(mut self) -> Result<Vec<HistoryRecord>, MoexError> {
+        collect_pages_blocking(|| self.next_page())
+    }
+
+    /// Алиас для [`Self::try_collect`].
+    pub fn all(self) -> Result<Vec<HistoryRecord>, MoexError> {
+        self.try_collect()
+    }
+}
+
+/// Ленивый пагинатор по страницам `secstats`.
+#[cfg(feature = "blocking")]
+pub struct SecStatsPages<'a> {
+    client: &'a BlockingMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    pagination: PaginationTracker<(SecId, BoardId)>,
+}
+
+#[cfg(feature = "blocking")]
+impl<'a> SecStatsPages<'a> {
+    /// Получить следующую страницу `secstats`.
+    pub fn next_page(&mut self) -> Result<Option<Vec<SecStat>>, MoexError> {
+        next_page_blocking(
+            &mut self.pagination,
+            |pagination| {
+                self.client
+                    .fetch_secstats_page(self.engine, self.market, pagination)
+            },
+            |item| (item.secid().clone(), item.boardid().clone()),
+        )
+    }
+
+    /// Собрать все страницы `secstats` в один `Vec`.
+    pub fn try_collect(mut self) -> Result<Vec<SecStat>, MoexError> {
+        collect_pages_blocking(|| self.next_page())
+    }
+
+    /// Алиас для [`Self::try_collect`].
+    pub fn all(self) -> Result<Vec<SecStat>, MoexError> {
+        self.try_collect()
+    }
+}
+
+/// Ленивый пагинатор по страницам `candles`.
+#[cfg(feature = "blocking")]
+pub struct CandlesPages<'a> {
+    client: &'a BlockingMoexClient,
+    engine: &'a EngineName,
+    market: &'a MarketName,
+    board: &'a BoardId,
+    security: &'a SecId,
+    query: CandleQuery,
+    pagination: PaginationTracker<chrono::NaiveDateTime>,
+}
+
+#[cfg(feature = "blocking")]
+impl<'a> CandlesPages<'a> {
+    /// Получить следующую страницу `candles`.
+    pub fn next_page(&mut self) -> Result<Option<Vec<Candle>>, MoexError> {
+        next_page_blocking(
+            &mut self.pagination,
+            |pagination| {
+                self.client.fetch_candles_page(
+                    self.engine,
+                    self.market,
+                    self.board,
+                    self.security,
+                    self.query,
+                    pagination,
+                )
+            },
+            Candle::begin,
+        )
+    }
+
+    /// Собрать все страницы `candles` в один `Vec`.
+    pub fn try_collect(mut self) -> Result<Vec<Candle>, MoexError> {
+        collect_pages_blocking(|| self.next_page())
+    }
+
+    /// Алиас для [`Self::try_collect`].
+    pub fn all(self) -> Result<Vec<Candle>, MoexError> {
+        self.try_collect()
+    }
+}
+
+#[derive(Clone)]
+/// Асинхронный владеющий контекст для `indexid`.
+///
+/// Удобен для fluent-цепочек, где вход передаётся как `impl TryInto<IndexId>`.
+#[cfg(feature = "async")]
+pub struct AsyncOwnedIndexScope<'a> {
+    client: &'a AsyncMoexClient,
+    indexid: IndexId,
+}
+
 #[cfg(feature = "async")]
 impl<'a> AsyncOwnedIndexScope<'a> {
     /// Идентификатор индекса текущего асинхронного контекста.
@@ -3736,6 +3762,14 @@ impl<'a> AsyncOwnedIndexScope<'a> {
     pub fn analytics_pages(&self, page_limit: NonZeroU32) -> AsyncIndexAnalyticsPages<'_> {
         self.client.index_analytics_pages(&self.indexid, page_limit)
     }
+}
+
+#[derive(Clone)]
+/// Асинхронный владеющий контекст для `engine`.
+#[cfg(feature = "async")]
+pub struct AsyncOwnedEngineScope<'a> {
+    client: &'a AsyncMoexClient,
+    engine: EngineName,
 }
 
 #[cfg(feature = "async")]
@@ -3773,6 +3807,15 @@ impl<'a> AsyncOwnedEngineScope<'a> {
     pub fn shares(self) -> Result<AsyncOwnedMarketScope<'a>, ParseMarketNameError> {
         self.market("shares")
     }
+}
+
+#[derive(Clone)]
+/// Асинхронный владеющий контекст для `engine/market`.
+#[cfg(feature = "async")]
+pub struct AsyncOwnedMarketScope<'a> {
+    client: &'a AsyncMoexClient,
+    engine: EngineName,
+    market: MarketName,
 }
 
 #[cfg(feature = "async")]
@@ -3879,6 +3922,58 @@ impl<'a> AsyncOwnedMarketScope<'a> {
     }
 }
 
+#[derive(Clone)]
+/// Асинхронный владеющий контекст для `engine/market/security`.
+#[cfg(feature = "async")]
+pub struct AsyncOwnedMarketSecurityScope<'a> {
+    client: &'a AsyncMoexClient,
+    engine: EngineName,
+    market: MarketName,
+    security: SecId,
+}
+
+#[cfg(feature = "async")]
+impl<'a> AsyncOwnedMarketSecurityScope<'a> {
+    /// Имя торгового движка текущего асинхронного контекста.
+    pub fn engine(&self) -> &EngineName {
+        &self.engine
+    }
+
+    /// Имя рынка текущего асинхронного контекста.
+    pub fn market(&self) -> &MarketName {
+        &self.market
+    }
+
+    /// Идентификатор инструмента текущего асинхронного контекста.
+    pub fn security(&self) -> &SecId {
+        &self.security
+    }
+
+    /// Получить карточку текущего инструмента на уровне рынка.
+    pub async fn info(&self) -> Result<Option<Security>, MoexError> {
+        self.client
+            .market_security_info(&self.engine, &self.market, &self.security)
+            .await
+    }
+
+    /// Получить доступные границы свечей (`candleborders`) по текущему инструменту.
+    pub async fn candle_borders(&self) -> Result<Vec<CandleBorder>, MoexError> {
+        self.client
+            .candle_borders(&self.engine, &self.market, &self.security)
+            .await
+    }
+}
+
+#[derive(Clone)]
+/// Асинхронный владеющий контекст для `engine/market/board`.
+#[cfg(feature = "async")]
+pub struct AsyncOwnedBoardScope<'a> {
+    client: &'a AsyncMoexClient,
+    engine: EngineName,
+    market: MarketName,
+    board: BoardId,
+}
+
 #[cfg(feature = "async")]
 impl<'a> AsyncOwnedBoardScope<'a> {
     /// Имя торгового движка текущего асинхронного контекста.
@@ -3933,6 +4028,14 @@ impl<'a> AsyncOwnedBoardScope<'a> {
     }
 }
 
+#[derive(Clone)]
+/// Асинхронный владеющий контекст для `securities/{secid}`.
+#[cfg(feature = "async")]
+pub struct AsyncOwnedSecurityResourceScope<'a> {
+    client: &'a AsyncMoexClient,
+    security: SecId,
+}
+
 #[cfg(feature = "async")]
 impl<'a> AsyncOwnedSecurityResourceScope<'a> {
     /// Идентификатор инструмента текущего асинхронного контекста.
@@ -3949,6 +4052,17 @@ impl<'a> AsyncOwnedSecurityResourceScope<'a> {
     pub async fn boards(&self) -> Result<Vec<SecurityBoard>, MoexError> {
         self.client.security_boards(&self.security).await
     }
+}
+
+#[derive(Clone)]
+/// Асинхронный владеющий контекст для `engine/market/board/security`.
+#[cfg(feature = "async")]
+pub struct AsyncOwnedSecurityScope<'a> {
+    client: &'a AsyncMoexClient,
+    engine: EngineName,
+    market: MarketName,
+    board: BoardId,
+    security: SecId,
 }
 
 #[cfg(feature = "async")]
@@ -4061,393 +4175,14 @@ impl<'a> AsyncOwnedSecurityScope<'a> {
     }
 }
 
-#[cfg(feature = "async")]
-impl<'a> AsyncOwnedMarketSecurityScope<'a> {
-    /// Имя торгового движка текущего асинхронного контекста.
-    pub fn engine(&self) -> &EngineName {
-        &self.engine
-    }
-
-    /// Имя рынка текущего асинхронного контекста.
-    pub fn market(&self) -> &MarketName {
-        &self.market
-    }
-
-    /// Идентификатор инструмента текущего асинхронного контекста.
-    pub fn security(&self) -> &SecId {
-        &self.security
-    }
-
-    /// Получить карточку текущего инструмента на уровне рынка.
-    pub async fn info(&self) -> Result<Option<Security>, MoexError> {
-        self.client
-            .market_security_info(&self.engine, &self.market, &self.security)
-            .await
-    }
-
-    /// Получить доступные границы свечей (`candleborders`) по текущему инструменту.
-    pub async fn candle_borders(&self) -> Result<Vec<CandleBorder>, MoexError> {
-        self.client
-            .candle_borders(&self.engine, &self.market, &self.security)
-            .await
-    }
-}
-
+#[derive(Clone)]
+/// Блокирующий владеющий контекст для `indexid`.
+///
+/// Удобен для fluent-цепочек, где вход передаётся как `impl TryInto<IndexId>`.
 #[cfg(feature = "blocking")]
-impl<'a> IndexAnalyticsPages<'a> {
-    /// Получить следующую страницу `index_analytics`.
-    pub fn next_page(&mut self) -> Result<Option<Vec<IndexAnalytics>>, MoexError> {
-        next_page_blocking(
-            &mut self.pagination,
-            |pagination| {
-                self.client
-                    .fetch_index_analytics_page(self.indexid, pagination)
-            },
-            |item| (item.trade_session_date(), item.secid().clone()),
-        )
-    }
-
-    /// Собрать все страницы `index_analytics` в один `Vec`.
-    pub fn try_collect(mut self) -> Result<Vec<IndexAnalytics>, MoexError> {
-        collect_pages_blocking(|| self.next_page())
-    }
-
-    /// Алиас для [`Self::try_collect`].
-    pub fn all(self) -> Result<Vec<IndexAnalytics>, MoexError> {
-        self.try_collect()
-    }
-}
-
-#[cfg(feature = "blocking")]
-impl<'a> SecuritiesPages<'a> {
-    /// Получить следующую страницу `securities`.
-    pub fn next_page(&mut self) -> Result<Option<Vec<Security>>, MoexError> {
-        next_page_blocking(
-            &mut self.pagination,
-            |pagination| {
-                self.client
-                    .fetch_securities_page(self.engine, self.market, self.board, pagination)
-            },
-            |item| item.secid().clone(),
-        )
-    }
-
-    /// Собрать все страницы `securities` в один `Vec`.
-    pub fn try_collect(mut self) -> Result<Vec<Security>, MoexError> {
-        collect_pages_blocking(|| self.next_page())
-    }
-
-    /// Алиас для [`Self::try_collect`].
-    pub fn all(self) -> Result<Vec<Security>, MoexError> {
-        self.try_collect()
-    }
-}
-
-#[cfg(feature = "blocking")]
-impl<'a> GlobalSecuritiesPages<'a> {
-    /// Получить следующую страницу глобального `securities`.
-    pub fn next_page(&mut self) -> Result<Option<Vec<Security>>, MoexError> {
-        next_page_blocking(
-            &mut self.pagination,
-            |pagination| self.client.fetch_global_securities_page(pagination),
-            |item| item.secid().clone(),
-        )
-    }
-
-    /// Собрать все страницы глобального `securities` в один `Vec`.
-    pub fn try_collect(mut self) -> Result<Vec<Security>, MoexError> {
-        collect_pages_blocking(|| self.next_page())
-    }
-
-    /// Алиас для [`Self::try_collect`].
-    pub fn all(self) -> Result<Vec<Security>, MoexError> {
-        self.try_collect()
-    }
-}
-
-#[cfg(all(feature = "blocking", feature = "news"))]
-impl<'a> SiteNewsPages<'a> {
-    /// Получить следующую страницу `sitenews`.
-    pub fn next_page(&mut self) -> Result<Option<Vec<SiteNews>>, MoexError> {
-        next_page_blocking(
-            &mut self.pagination,
-            |pagination| self.client.fetch_sitenews_page(pagination),
-            SiteNews::id,
-        )
-    }
-
-    /// Собрать все страницы `sitenews` в один `Vec`.
-    pub fn try_collect(mut self) -> Result<Vec<SiteNews>, MoexError> {
-        collect_pages_blocking(|| self.next_page())
-    }
-
-    /// Алиас для [`Self::try_collect`].
-    pub fn all(self) -> Result<Vec<SiteNews>, MoexError> {
-        self.try_collect()
-    }
-}
-
-#[cfg(all(feature = "blocking", feature = "news"))]
-impl<'a> EventsPages<'a> {
-    /// Получить следующую страницу `events`.
-    pub fn next_page(&mut self) -> Result<Option<Vec<Event>>, MoexError> {
-        next_page_blocking(
-            &mut self.pagination,
-            |pagination| self.client.fetch_events_page(pagination),
-            Event::id,
-        )
-    }
-
-    /// Собрать все страницы `events` в один `Vec`.
-    pub fn try_collect(mut self) -> Result<Vec<Event>, MoexError> {
-        collect_pages_blocking(|| self.next_page())
-    }
-
-    /// Алиас для [`Self::try_collect`].
-    pub fn all(self) -> Result<Vec<Event>, MoexError> {
-        self.try_collect()
-    }
-}
-
-#[cfg(feature = "blocking")]
-impl<'a> MarketSecuritiesPages<'a> {
-    /// Получить следующую страницу `securities` на уровне рынка.
-    pub fn next_page(&mut self) -> Result<Option<Vec<Security>>, MoexError> {
-        next_page_blocking(
-            &mut self.pagination,
-            |pagination| {
-                self.client
-                    .fetch_market_securities_page(self.engine, self.market, pagination)
-            },
-            |item| item.secid().clone(),
-        )
-    }
-
-    /// Собрать все страницы `securities` на уровне рынка в один `Vec`.
-    pub fn try_collect(mut self) -> Result<Vec<Security>, MoexError> {
-        collect_pages_blocking(|| self.next_page())
-    }
-
-    /// Алиас для [`Self::try_collect`].
-    pub fn all(self) -> Result<Vec<Security>, MoexError> {
-        self.try_collect()
-    }
-}
-
-#[cfg(feature = "blocking")]
-impl<'a> MarketTradesPages<'a> {
-    /// Получить следующую страницу `trades` на уровне рынка.
-    pub fn next_page(&mut self) -> Result<Option<Vec<Trade>>, MoexError> {
-        next_page_blocking(
-            &mut self.pagination,
-            |pagination| {
-                self.client
-                    .fetch_market_trades_page(self.engine, self.market, pagination)
-            },
-            Trade::tradeno,
-        )
-    }
-
-    /// Собрать все страницы `trades` на уровне рынка в один `Vec`.
-    pub fn try_collect(mut self) -> Result<Vec<Trade>, MoexError> {
-        collect_pages_blocking(|| self.next_page())
-    }
-
-    /// Алиас для [`Self::try_collect`].
-    pub fn all(self) -> Result<Vec<Trade>, MoexError> {
-        self.try_collect()
-    }
-}
-
-#[cfg(feature = "blocking")]
-impl<'a> TradesPages<'a> {
-    /// Получить следующую страницу `trades`.
-    pub fn next_page(&mut self) -> Result<Option<Vec<Trade>>, MoexError> {
-        next_page_blocking(
-            &mut self.pagination,
-            |pagination| {
-                self.client.fetch_trades_page(
-                    self.engine,
-                    self.market,
-                    self.board,
-                    self.security,
-                    pagination,
-                )
-            },
-            Trade::tradeno,
-        )
-    }
-
-    /// Собрать все страницы `trades` в один `Vec`.
-    pub fn try_collect(mut self) -> Result<Vec<Trade>, MoexError> {
-        collect_pages_blocking(|| self.next_page())
-    }
-
-    /// Алиас для [`Self::try_collect`].
-    pub fn all(self) -> Result<Vec<Trade>, MoexError> {
-        self.try_collect()
-    }
-}
-
-#[cfg(all(feature = "blocking", feature = "history"))]
-impl<'a> HistoryPages<'a> {
-    /// Получить следующую страницу `history`.
-    pub fn next_page(&mut self) -> Result<Option<Vec<HistoryRecord>>, MoexError> {
-        next_page_blocking(
-            &mut self.pagination,
-            |pagination| {
-                self.client.fetch_history_page(
-                    self.engine,
-                    self.market,
-                    self.board,
-                    self.security,
-                    pagination,
-                )
-            },
-            HistoryRecord::tradedate,
-        )
-    }
-
-    /// Собрать все страницы `history` в один `Vec`.
-    pub fn try_collect(mut self) -> Result<Vec<HistoryRecord>, MoexError> {
-        collect_pages_blocking(|| self.next_page())
-    }
-
-    /// Алиас для [`Self::try_collect`].
-    pub fn all(self) -> Result<Vec<HistoryRecord>, MoexError> {
-        self.try_collect()
-    }
-}
-
-#[cfg(feature = "blocking")]
-impl<'a> SecStatsPages<'a> {
-    /// Получить следующую страницу `secstats`.
-    pub fn next_page(&mut self) -> Result<Option<Vec<SecStat>>, MoexError> {
-        next_page_blocking(
-            &mut self.pagination,
-            |pagination| {
-                self.client
-                    .fetch_secstats_page(self.engine, self.market, pagination)
-            },
-            |item| (item.secid().clone(), item.boardid().clone()),
-        )
-    }
-
-    /// Собрать все страницы `secstats` в один `Vec`.
-    pub fn try_collect(mut self) -> Result<Vec<SecStat>, MoexError> {
-        collect_pages_blocking(|| self.next_page())
-    }
-
-    /// Алиас для [`Self::try_collect`].
-    pub fn all(self) -> Result<Vec<SecStat>, MoexError> {
-        self.try_collect()
-    }
-}
-
-#[cfg(feature = "blocking")]
-impl<'a> CandlesPages<'a> {
-    /// Получить следующую страницу `candles`.
-    pub fn next_page(&mut self) -> Result<Option<Vec<Candle>>, MoexError> {
-        next_page_blocking(
-            &mut self.pagination,
-            |pagination| {
-                self.client.fetch_candles_page(
-                    self.engine,
-                    self.market,
-                    self.board,
-                    self.security,
-                    self.query,
-                    pagination,
-                )
-            },
-            Candle::begin,
-        )
-    }
-
-    /// Собрать все страницы `candles` в один `Vec`.
-    pub fn try_collect(mut self) -> Result<Vec<Candle>, MoexError> {
-        collect_pages_blocking(|| self.next_page())
-    }
-
-    /// Алиас для [`Self::try_collect`].
-    pub fn all(self) -> Result<Vec<Candle>, MoexError> {
-        self.try_collect()
-    }
-}
-
-impl<K> PaginationTracker<K> {
-    fn new(
-        endpoint: impl Into<String>,
-        page_limit: NonZeroU32,
-        repeat_page_policy: RepeatPagePolicy,
-    ) -> Self {
-        Self {
-            endpoint: endpoint.into().into_boxed_str(),
-            page_limit,
-            repeat_page_policy,
-            start: 0,
-            first_key_on_previous_page: None,
-            finished: false,
-        }
-    }
-
-    fn next_page_request(&self) -> Option<Pagination> {
-        if self.finished {
-            return None;
-        }
-        Some(Pagination {
-            start: Some(self.start),
-            limit: Some(self.page_limit),
-        })
-    }
-}
-
-impl<K> PaginationTracker<K>
-where
-    K: Eq,
-{
-    fn advance(
-        &mut self,
-        page_len: usize,
-        first_key_on_page: Option<K>,
-    ) -> Result<PaginationAdvance, MoexError> {
-        let page_limit = self.page_limit.get();
-
-        if page_len == 0 {
-            self.finished = true;
-            return Ok(PaginationAdvance::EndOfPages);
-        }
-
-        if let (Some(prev), Some(current)) = (&self.first_key_on_previous_page, &first_key_on_page)
-            && prev == current
-        {
-            return match self.repeat_page_policy {
-                RepeatPagePolicy::Error => Err(MoexError::PaginationStuck {
-                    endpoint: self.endpoint.clone(),
-                    start: self.start,
-                    limit: page_limit,
-                }),
-            };
-        }
-
-        self.first_key_on_previous_page = first_key_on_page;
-
-        if (page_len as u128) < u128::from(page_limit) {
-            self.finished = true;
-            return Ok(PaginationAdvance::YieldPage);
-        }
-
-        self.start =
-            self.start
-                .checked_add(page_limit)
-                .ok_or_else(|| MoexError::PaginationOverflow {
-                    endpoint: self.endpoint.clone(),
-                    start: self.start,
-                    limit: page_limit,
-                })?;
-
-        Ok(PaginationAdvance::YieldPage)
-    }
+pub struct OwnedIndexScope<'a> {
+    client: &'a BlockingMoexClient,
+    indexid: IndexId,
 }
 
 #[cfg(feature = "blocking")]
@@ -4467,6 +4202,14 @@ impl<'a> OwnedIndexScope<'a> {
     pub fn analytics_pages(&self, page_limit: NonZeroU32) -> IndexAnalyticsPages<'_> {
         self.client.index_analytics_pages(&self.indexid, page_limit)
     }
+}
+
+#[derive(Clone)]
+/// Блокирующий владеющий контекст для `engine`.
+#[cfg(feature = "blocking")]
+pub struct OwnedEngineScope<'a> {
+    client: &'a BlockingMoexClient,
+    engine: EngineName,
 }
 
 #[cfg(feature = "blocking")]
@@ -4504,6 +4247,15 @@ impl<'a> OwnedEngineScope<'a> {
     pub fn shares(self) -> Result<OwnedMarketScope<'a>, ParseMarketNameError> {
         self.market("shares")
     }
+}
+
+#[derive(Clone)]
+/// Блокирующий владеющий контекст для `engine/market`.
+#[cfg(feature = "blocking")]
+pub struct OwnedMarketScope<'a> {
+    client: &'a BlockingMoexClient,
+    engine: EngineName,
+    market: MarketName,
 }
 
 #[cfg(feature = "blocking")]
@@ -4601,6 +4353,56 @@ impl<'a> OwnedMarketScope<'a> {
     }
 }
 
+#[derive(Clone)]
+/// Блокирующий владеющий контекст для `engine/market/security`.
+#[cfg(feature = "blocking")]
+pub struct OwnedMarketSecurityScope<'a> {
+    client: &'a BlockingMoexClient,
+    engine: EngineName,
+    market: MarketName,
+    security: SecId,
+}
+
+#[cfg(feature = "blocking")]
+impl<'a> OwnedMarketSecurityScope<'a> {
+    /// Имя торгового движка текущего контекста.
+    pub fn engine(&self) -> &EngineName {
+        &self.engine
+    }
+
+    /// Имя рынка текущего контекста.
+    pub fn market(&self) -> &MarketName {
+        &self.market
+    }
+
+    /// Идентификатор инструмента текущего контекста.
+    pub fn security(&self) -> &SecId {
+        &self.security
+    }
+
+    /// Получить карточку текущего инструмента на уровне рынка.
+    pub fn info(&self) -> Result<Option<Security>, MoexError> {
+        self.client
+            .market_security_info(&self.engine, &self.market, &self.security)
+    }
+
+    /// Получить доступные границы свечей (`candleborders`) по текущему инструменту.
+    pub fn candle_borders(&self) -> Result<Vec<CandleBorder>, MoexError> {
+        self.client
+            .candle_borders(&self.engine, &self.market, &self.security)
+    }
+}
+
+#[derive(Clone)]
+/// Блокирующий владеющий контекст для `engine/market/board`.
+#[cfg(feature = "blocking")]
+pub struct OwnedBoardScope<'a> {
+    client: &'a BlockingMoexClient,
+    engine: EngineName,
+    market: MarketName,
+    board: BoardId,
+}
+
 #[cfg(feature = "blocking")]
 impl<'a> OwnedBoardScope<'a> {
     /// Имя торгового движка текущего контекста.
@@ -4653,6 +4455,14 @@ impl<'a> OwnedBoardScope<'a> {
     }
 }
 
+#[derive(Clone)]
+/// Блокирующий владеющий контекст для `securities/{secid}`.
+#[cfg(feature = "blocking")]
+pub struct OwnedSecurityResourceScope<'a> {
+    client: &'a BlockingMoexClient,
+    security: SecId,
+}
+
 #[cfg(feature = "blocking")]
 impl<'a> OwnedSecurityResourceScope<'a> {
     /// Идентификатор инструмента текущего контекста.
@@ -4669,6 +4479,17 @@ impl<'a> OwnedSecurityResourceScope<'a> {
     pub fn boards(&self) -> Result<Vec<SecurityBoard>, MoexError> {
         self.client.security_boards(&self.security)
     }
+}
+
+#[derive(Clone)]
+/// Блокирующий владеющий контекст для `engine/market/board/security`.
+#[cfg(feature = "blocking")]
+pub struct OwnedSecurityScope<'a> {
+    client: &'a BlockingMoexClient,
+    engine: EngineName,
+    market: MarketName,
+    board: BoardId,
+    security: SecId,
 }
 
 #[cfg(feature = "blocking")]
@@ -4772,34 +4593,190 @@ impl<'a> OwnedSecurityScope<'a> {
     }
 }
 
+struct PaginationTracker<K> {
+    endpoint: Box<str>,
+    page_limit: NonZeroU32,
+    repeat_page_policy: RepeatPagePolicy,
+    start: u32,
+    first_key_on_previous_page: Option<K>,
+    finished: bool,
+}
+
+impl<K> PaginationTracker<K> {
+    fn new(
+        endpoint: impl Into<String>,
+        page_limit: NonZeroU32,
+        repeat_page_policy: RepeatPagePolicy,
+    ) -> Self {
+        Self {
+            endpoint: endpoint.into().into_boxed_str(),
+            page_limit,
+            repeat_page_policy,
+            start: 0,
+            first_key_on_previous_page: None,
+            finished: false,
+        }
+    }
+
+    fn next_page_request(&self) -> Option<Pagination> {
+        if self.finished {
+            return None;
+        }
+        Some(Pagination {
+            start: Some(self.start),
+            limit: Some(self.page_limit),
+        })
+    }
+}
+
+impl<K> PaginationTracker<K>
+where
+    K: Eq,
+{
+    fn advance(
+        &mut self,
+        page_len: usize,
+        first_key_on_page: Option<K>,
+    ) -> Result<PaginationAdvance, MoexError> {
+        let page_limit = self.page_limit.get();
+
+        if page_len == 0 {
+            self.finished = true;
+            return Ok(PaginationAdvance::EndOfPages);
+        }
+
+        if let (Some(prev), Some(current)) = (&self.first_key_on_previous_page, &first_key_on_page)
+            && prev == current
+        {
+            return match self.repeat_page_policy {
+                RepeatPagePolicy::Error => Err(MoexError::PaginationStuck {
+                    endpoint: self.endpoint.clone(),
+                    start: self.start,
+                    limit: page_limit,
+                }),
+            };
+        }
+
+        self.first_key_on_previous_page = first_key_on_page;
+
+        if (page_len as u128) < u128::from(page_limit) {
+            self.finished = true;
+            return Ok(PaginationAdvance::YieldPage);
+        }
+
+        self.start =
+            self.start
+                .checked_add(page_limit)
+                .ok_or_else(|| MoexError::PaginationOverflow {
+                    endpoint: self.endpoint.clone(),
+                    start: self.start,
+                    limit: page_limit,
+                })?;
+
+        Ok(PaginationAdvance::YieldPage)
+    }
+}
+
+#[cfg(any(feature = "blocking", feature = "async"))]
+fn resolve_base_url_or_default(base_url: Option<Url>) -> Result<Url, MoexError> {
+    match base_url {
+        Some(base_url) => Ok(base_url),
+        None => Url::parse(BASE_URL).map_err(|source| MoexError::InvalidBaseUrl {
+            base_url: BASE_URL,
+            reason: source.to_string(),
+        }),
+    }
+}
+
 #[cfg(feature = "blocking")]
-impl<'a> OwnedMarketSecurityScope<'a> {
-    /// Имя торгового движка текущего контекста.
-    pub fn engine(&self) -> &EngineName {
-        &self.engine
+fn resolve_blocking_http_client(
+    client: Option<Client>,
+    http_client: ClientBuilder,
+) -> Result<Client, MoexError> {
+    match client {
+        Some(client) => Ok(client),
+        None => http_client
+            .build()
+            .map_err(|source| MoexError::BuildHttpClient { source }),
     }
+}
 
-    /// Имя рынка текущего контекста.
-    pub fn market(&self) -> &MarketName {
-        &self.market
+#[cfg(feature = "async")]
+fn resolve_async_http_client(
+    client: Option<reqwest::Client>,
+    http_client: reqwest::ClientBuilder,
+) -> Result<reqwest::Client, MoexError> {
+    match client {
+        Some(client) => Ok(client),
+        None => http_client
+            .build()
+            .map_err(|source| MoexError::BuildHttpClient { source }),
     }
+}
 
-    /// Идентификатор инструмента текущего контекста.
-    pub fn security(&self) -> &SecId {
-        &self.security
+#[cfg(feature = "async")]
+fn resolve_async_rate_limit_state(
+    rate_limit: Option<RateLimit>,
+    rate_limit_sleep: Option<AsyncRateLimitSleep>,
+) -> Result<Option<AsyncRateLimitState>, MoexError> {
+    match rate_limit {
+        Some(limit) => {
+            let sleep = rate_limit_sleep.ok_or(MoexError::MissingAsyncRateLimitSleep)?;
+            Ok(Some(AsyncRateLimitState {
+                limiter: Mutex::new(RateLimiter::new(limit)),
+                sleep,
+            }))
+        }
+        None => Ok(None),
     }
+}
 
-    /// Получить карточку текущего инструмента на уровне рынка.
-    pub fn info(&self) -> Result<Option<Security>, MoexError> {
-        self.client
-            .market_security_info(&self.engine, &self.market, &self.security)
+#[cfg(any(feature = "blocking", feature = "async"))]
+fn lock_rate_limiter(limiter: &Mutex<RateLimiter>) -> std::sync::MutexGuard<'_, RateLimiter> {
+    match limiter.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
     }
+}
 
-    /// Получить доступные границы свечей (`candleborders`) по текущему инструменту.
-    pub fn candle_borders(&self) -> Result<Vec<CandleBorder>, MoexError> {
-        self.client
-            .candle_borders(&self.engine, &self.market, &self.security)
+#[cfg(any(feature = "blocking", feature = "async"))]
+fn reserve_rate_limit_delay(limiter: &Mutex<RateLimiter>) -> Duration {
+    let mut limiter = lock_rate_limiter(limiter);
+    limiter.reserve_delay()
+}
+
+#[cfg(feature = "blocking")]
+fn next_page_blocking<T, K, F, G>(
+    pagination: &mut PaginationTracker<K>,
+    fetch_page: F,
+    first_key_of: G,
+) -> Result<Option<Vec<T>>, MoexError>
+where
+    K: Eq,
+    F: FnOnce(Pagination) -> Result<Vec<T>, MoexError>,
+    G: Fn(&T) -> K,
+{
+    let Some(paging) = pagination.next_page_request() else {
+        return Ok(None);
+    };
+    let page = fetch_page(paging)?;
+    let first_key_on_page = page.first().map(first_key_of);
+    match pagination.advance(page.len(), first_key_on_page)? {
+        PaginationAdvance::YieldPage => Ok(Some(page)),
+        PaginationAdvance::EndOfPages => Ok(None),
     }
+}
+
+#[cfg(feature = "blocking")]
+fn collect_pages_blocking<T, F>(mut next_page: F) -> Result<Vec<T>, MoexError>
+where
+    F: FnMut() -> Result<Option<Vec<T>>, MoexError>,
+{
+    let mut items = Vec::new();
+    while let Some(page) = next_page()? {
+        items.extend(page);
+    }
+    Ok(items)
 }
 
 fn apply_iss_request_options(query: &mut Vec<(Box<str>, Box<str>)>, options: IssRequestOptions) {
@@ -4946,4 +4923,26 @@ pub(super) fn truncate_prefix(payload: &str, max_chars: usize) -> Box<str> {
         .take(max_chars)
         .collect::<String>()
         .into_boxed_str()
+}
+#[cfg(feature = "async")]
+async fn next_page_async<T, K, F, Fut, G>(
+    pagination: &mut PaginationTracker<K>,
+    fetch_page: F,
+    first_key_of: G,
+) -> Result<Option<Vec<T>>, MoexError>
+where
+    K: Eq,
+    F: FnOnce(Pagination) -> Fut,
+    Fut: std::future::Future<Output = Result<Vec<T>, MoexError>>,
+    G: Fn(&T) -> K,
+{
+    let Some(paging) = pagination.next_page_request() else {
+        return Ok(None);
+    };
+    let page = fetch_page(paging).await?;
+    let first_key_on_page = page.first().map(first_key_of);
+    match pagination.advance(page.len(), first_key_on_page)? {
+        PaginationAdvance::YieldPage => Ok(Some(page)),
+        PaginationAdvance::EndOfPages => Ok(None),
+    }
 }

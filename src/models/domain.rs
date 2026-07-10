@@ -6,35 +6,6 @@ use std::str::FromStr;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-/// Идентификатор индекса MOEX (`indexid`).
-pub struct IndexId(Box<str>);
-
-impl IndexId {
-    /// Вернуть строковое представление идентификатора.
-    pub fn as_str(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-
-impl fmt::Display for IndexId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl AsRef<str> for IndexId {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl From<&IndexId> for IndexId {
-    fn from(value: &IndexId) -> Self {
-        value.clone()
-    }
-}
-
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 /// Ошибки построения [`Index`].
 pub enum ParseIndexError {
@@ -218,66 +189,6 @@ pub enum ParseEngineNameError {
 impl From<Infallible> for ParseEngineNameError {
     fn from(value: Infallible) -> Self {
         match value {}
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-/// Имя торгового движка MOEX (`engine`).
-pub struct EngineName(Box<str>);
-
-impl EngineName {
-    /// Вернуть строковое представление имени движка.
-    pub fn as_str(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-
-impl fmt::Display for EngineName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl AsRef<str> for EngineName {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl From<&EngineName> for EngineName {
-    fn from(value: &EngineName) -> Self {
-        value.clone()
-    }
-}
-
-impl TryFrom<String> for EngineName {
-    type Error = ParseEngineNameError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::try_from(value.as_str())
-    }
-}
-
-impl TryFrom<&str> for EngineName {
-    type Error = ParseEngineNameError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let value = value.trim();
-        if value.is_empty() {
-            return Err(ParseEngineNameError::Empty);
-        }
-        if value.contains('/') {
-            return Err(ParseEngineNameError::ContainsSlash);
-        }
-        Ok(Self(value.to_owned().into_boxed_str()))
-    }
-}
-
-impl FromStr for EngineName {
-    type Err = ParseEngineNameError;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::try_from(value)
     }
 }
 
@@ -485,6 +396,277 @@ impl From<Infallible> for ParseSecIdError {
     }
 }
 
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+/// Ошибки разбора идентификатора режима торгов (`boardid`).
+pub enum ParseBoardIdError {
+    /// Пустой `boardid`.
+    #[error("boardid must not be empty")]
+    Empty,
+    /// `boardid` содержит символ `/`, запрещённый в path-сегменте.
+    #[error("boardid must not contain '/'")]
+    ContainsSlash,
+}
+
+impl From<Infallible> for ParseBoardIdError {
+    fn from(value: Infallible) -> Self {
+        match value {}
+    }
+}
+
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+/// Ошибки разбора имени рынка MOEX.
+pub enum ParseMarketNameError {
+    /// Пустое имя.
+    #[error("market name must not be empty")]
+    Empty,
+    /// Имя содержит символ `/`, запрещённый в path-сегменте.
+    #[error("market name must not contain '/'")]
+    ContainsSlash,
+}
+
+impl From<Infallible> for ParseMarketNameError {
+    fn from(value: Infallible) -> Self {
+        match value {}
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Интервалы свечей в терминах ISS.
+pub enum CandleInterval {
+    /// 1 минута.
+    Minute1,
+    /// 10 минут.
+    Minute10,
+    /// 1 час.
+    Hour1,
+    /// 1 день.
+    Day1,
+    /// 1 неделя.
+    Week1,
+    /// 1 месяц.
+    Month1,
+    /// 1 квартал.
+    Quarter1,
+}
+
+impl CandleInterval {
+    /// Вернуть строковый код интервала для query-параметра `interval`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Minute1 => "1",
+            Self::Minute10 => "10",
+            Self::Hour1 => "60",
+            Self::Day1 => "24",
+            Self::Week1 => "7",
+            Self::Month1 => "31",
+            Self::Quarter1 => "4",
+        }
+    }
+}
+
+impl TryFrom<i64> for CandleInterval {
+    type Error = ParseCandleIntervalError;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(Self::Minute1),
+            10 => Ok(Self::Minute10),
+            60 => Ok(Self::Hour1),
+            24 => Ok(Self::Day1),
+            7 => Ok(Self::Week1),
+            31 => Ok(Self::Month1),
+            4 => Ok(Self::Quarter1),
+            other => Err(ParseCandleIntervalError::InvalidCode(other)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+/// Режим получения страницы данных ISS.
+///
+/// Позволяет единообразно описать: первую страницу, произвольную страницу
+/// (`start`, `limit`) или полную выборку с авто-пагинацией.
+pub enum PageRequest {
+    /// Первая страница ISS (без явных `start`, `limit`).
+    #[default]
+    FirstPage,
+    /// Явные параметры пагинации ISS.
+    Page(Pagination),
+    /// Полная выгрузка с авто-пагинацией и размером страницы.
+    All {
+        /// Размер страницы ISS (`limit`) при авто-пагинации.
+        page_limit: NonZeroU32,
+    },
+}
+
+impl PageRequest {
+    /// Запросить первую страницу ISS.
+    pub fn first_page() -> Self {
+        Self::FirstPage
+    }
+
+    /// Запросить страницу ISS с явными параметрами.
+    pub fn page(pagination: Pagination) -> Self {
+        Self::Page(pagination)
+    }
+
+    /// Запросить полную выборку ISS с авто-пагинацией.
+    pub fn all(page_limit: NonZeroU32) -> Self {
+        Self::All { page_limit }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Направление заявки в стакане.
+pub enum BuySell {
+    /// Покупка (`B`).
+    Buy,
+    /// Продажа (`S`).
+    Sell,
+}
+
+impl BuySell {
+    /// Вернуть строковый код для ISS (`B` или `S`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Buy => "B",
+            Self::Sell => "S",
+        }
+    }
+}
+
+impl TryFrom<String> for BuySell {
+    type Error = ParseOrderbookError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let value = value.trim();
+        match value {
+            "B" => Ok(Self::Buy),
+            "S" => Ok(Self::Sell),
+            _ => Err(ParseOrderbookError::InvalidSide(
+                value.to_owned().into_boxed_str(),
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Идентификатор индекса MOEX (`indexid`).
+pub struct IndexId(Box<str>);
+
+impl IndexId {
+    /// Вернуть строковое представление идентификатора.
+    pub fn as_str(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<str> for IndexId {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl From<&IndexId> for IndexId {
+    fn from(value: &IndexId) -> Self {
+        value.clone()
+    }
+}
+
+impl TryFrom<String> for IndexId {
+    type Error = ParseIndexError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str())
+    }
+}
+
+impl TryFrom<&str> for IndexId {
+    type Error = ParseIndexError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let value = value.trim();
+        if value.is_empty() {
+            return Err(ParseIndexError::EmptyIndexId);
+        }
+        Ok(Self(value.to_owned().into_boxed_str()))
+    }
+}
+
+impl FromStr for IndexId {
+    type Err = ParseIndexError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::try_from(value)
+    }
+}
+
+impl fmt::Display for IndexId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Имя торгового движка MOEX (`engine`).
+pub struct EngineName(Box<str>);
+
+impl EngineName {
+    /// Вернуть строковое представление имени движка.
+    pub fn as_str(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<str> for EngineName {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl From<&EngineName> for EngineName {
+    fn from(value: &EngineName) -> Self {
+        value.clone()
+    }
+}
+
+impl TryFrom<String> for EngineName {
+    type Error = ParseEngineNameError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str())
+    }
+}
+
+impl TryFrom<&str> for EngineName {
+    type Error = ParseEngineNameError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let value = value.trim();
+        if value.is_empty() {
+            return Err(ParseEngineNameError::Empty);
+        }
+        if value.contains('/') {
+            return Err(ParseEngineNameError::ContainsSlash);
+        }
+        Ok(Self(value.to_owned().into_boxed_str()))
+    }
+}
+
+impl FromStr for EngineName {
+    type Err = ParseEngineNameError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::try_from(value)
+    }
+}
+
+impl fmt::Display for EngineName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Идентификатор инструмента MOEX (`secid`).
 pub struct SecId(Box<str>);
@@ -493,12 +675,6 @@ impl SecId {
     /// Вернуть строковое представление идентификатора.
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
-    }
-}
-
-impl fmt::Display for SecId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 
@@ -545,20 +721,9 @@ impl FromStr for SecId {
     }
 }
 
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
-/// Ошибки разбора идентификатора режима торгов (`boardid`).
-pub enum ParseBoardIdError {
-    /// Пустой `boardid`.
-    #[error("boardid must not be empty")]
-    Empty,
-    /// `boardid` содержит символ `/`, запрещённый в path-сегменте.
-    #[error("boardid must not contain '/'")]
-    ContainsSlash,
-}
-
-impl From<Infallible> for ParseBoardIdError {
-    fn from(value: Infallible) -> Self {
-        match value {}
+impl fmt::Display for SecId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -570,12 +735,6 @@ impl BoardId {
     /// Вернуть строковое представление идентификатора.
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
-    }
-}
-
-impl fmt::Display for BoardId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 
@@ -622,20 +781,9 @@ impl FromStr for BoardId {
     }
 }
 
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
-/// Ошибки разбора имени рынка MOEX.
-pub enum ParseMarketNameError {
-    /// Пустое имя.
-    #[error("market name must not be empty")]
-    Empty,
-    /// Имя содержит символ `/`, запрещённый в path-сегменте.
-    #[error("market name must not contain '/'")]
-    ContainsSlash,
-}
-
-impl From<Infallible> for ParseMarketNameError {
-    fn from(value: Infallible) -> Self {
-        match value {}
+impl fmt::Display for BoardId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -647,12 +795,6 @@ impl MarketName {
     /// Вернуть строковое представление имени рынка.
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
-    }
-}
-
-impl fmt::Display for MarketName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 
@@ -696,6 +838,12 @@ impl FromStr for MarketName {
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         Self::try_from(value)
+    }
+}
+
+impl fmt::Display for MarketName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -1088,57 +1236,6 @@ impl SecuritySnapshot {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// Интервалы свечей в терминах ISS.
-pub enum CandleInterval {
-    /// 1 минута.
-    Minute1,
-    /// 10 минут.
-    Minute10,
-    /// 1 час.
-    Hour1,
-    /// 1 день.
-    Day1,
-    /// 1 неделя.
-    Week1,
-    /// 1 месяц.
-    Month1,
-    /// 1 квартал.
-    Quarter1,
-}
-
-impl CandleInterval {
-    /// Вернуть строковый код интервала для query-параметра `interval`.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Minute1 => "1",
-            Self::Minute10 => "10",
-            Self::Hour1 => "60",
-            Self::Day1 => "24",
-            Self::Week1 => "7",
-            Self::Month1 => "31",
-            Self::Quarter1 => "4",
-        }
-    }
-}
-
-impl TryFrom<i64> for CandleInterval {
-    type Error = ParseCandleIntervalError;
-
-    fn try_from(value: i64) -> Result<Self, Self::Error> {
-        match value {
-            1 => Ok(Self::Minute1),
-            10 => Ok(Self::Minute10),
-            60 => Ok(Self::Hour1),
-            24 => Ok(Self::Day1),
-            7 => Ok(Self::Week1),
-            31 => Ok(Self::Month1),
-            4 => Ok(Self::Quarter1),
-            other => Err(ParseCandleIntervalError::InvalidCode(other)),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Доступные границы свечных данных (`candleborders`).
 pub struct CandleBorder {
@@ -1279,41 +1376,6 @@ impl Pagination {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-/// Режим получения страницы данных ISS.
-///
-/// Позволяет единообразно описать: первую страницу, произвольную страницу
-/// (`start`, `limit`) или полную выборку с авто-пагинацией.
-pub enum PageRequest {
-    /// Первая страница ISS (без явных `start`, `limit`).
-    #[default]
-    FirstPage,
-    /// Явные параметры пагинации ISS.
-    Page(Pagination),
-    /// Полная выгрузка с авто-пагинацией и размером страницы.
-    All {
-        /// Размер страницы ISS (`limit`) при авто-пагинации.
-        page_limit: NonZeroU32,
-    },
-}
-
-impl PageRequest {
-    /// Запросить первую страницу ISS.
-    pub fn first_page() -> Self {
-        Self::FirstPage
-    }
-
-    /// Запросить страницу ISS с явными параметрами.
-    pub fn page(pagination: Pagination) -> Self {
-        Self::Page(pagination)
-    }
-
-    /// Запросить полную выборку ISS с авто-пагинацией.
-    pub fn all(page_limit: NonZeroU32) -> Self {
-        Self::All { page_limit }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 /// Свеча торгового инструмента (`candles`).
 pub struct Candle {
@@ -1325,38 +1387,6 @@ pub struct Candle {
     low: Option<f64>,
     value: Option<f64>,
     volume: Option<u64>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-/// Компоненты OHLCV для построения [`Candle`].
-pub struct CandleOhlcv {
-    open: Option<f64>,
-    close: Option<f64>,
-    high: Option<f64>,
-    low: Option<f64>,
-    value: Option<f64>,
-    volume: Option<i64>,
-}
-
-impl CandleOhlcv {
-    /// Создать набор OHLCV-значений без валидации.
-    pub fn new(
-        open: Option<f64>,
-        close: Option<f64>,
-        high: Option<f64>,
-        low: Option<f64>,
-        value: Option<f64>,
-        volume: Option<i64>,
-    ) -> Self {
-        Self {
-            open,
-            close,
-            high,
-            low,
-            value,
-            volume,
-        }
-    }
 }
 
 impl Candle {
@@ -1429,6 +1459,38 @@ impl Candle {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+/// Компоненты OHLCV для построения [`Candle`].
+pub struct CandleOhlcv {
+    open: Option<f64>,
+    close: Option<f64>,
+    high: Option<f64>,
+    low: Option<f64>,
+    value: Option<f64>,
+    volume: Option<i64>,
+}
+
+impl CandleOhlcv {
+    /// Создать набор OHLCV-значений без валидации.
+    pub fn new(
+        open: Option<f64>,
+        close: Option<f64>,
+        high: Option<f64>,
+        low: Option<f64>,
+        value: Option<f64>,
+        volume: Option<i64>,
+    ) -> Self {
+        Self {
+            open,
+            close,
+            high,
+            low,
+            value,
+            volume,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 /// Сделка (`trades`).
 pub struct Trade {
@@ -1495,40 +1557,6 @@ impl Trade {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// Направление заявки в стакане.
-pub enum BuySell {
-    /// Покупка (`B`).
-    Buy,
-    /// Продажа (`S`).
-    Sell,
-}
-
-impl BuySell {
-    /// Вернуть строковый код для ISS (`B` или `S`).
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Buy => "B",
-            Self::Sell => "S",
-        }
-    }
-}
-
-impl TryFrom<String> for BuySell {
-    type Error = ParseOrderbookError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        let value = value.trim();
-        match value {
-            "B" => Ok(Self::Buy),
-            "S" => Ok(Self::Sell),
-            _ => Err(ParseOrderbookError::InvalidSide(
-                value.to_owned().into_boxed_str(),
-            )),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 /// Уровень стакана (`orderbook`).
 pub struct OrderbookLevel {
@@ -1584,34 +1612,6 @@ impl OrderbookLevel {
     }
 }
 
-impl TryFrom<String> for IndexId {
-    type Error = ParseIndexError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::try_from(value.as_str())
-    }
-}
-
-impl TryFrom<&str> for IndexId {
-    type Error = ParseIndexError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let value = value.trim();
-        if value.is_empty() {
-            return Err(ParseIndexError::EmptyIndexId);
-        }
-        Ok(Self(value.to_owned().into_boxed_str()))
-    }
-}
-
-impl FromStr for IndexId {
-    type Err = ParseIndexError;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::try_from(value)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Индекс MOEX (`indices`).
 pub struct Index {
@@ -1619,6 +1619,62 @@ pub struct Index {
     short_name: Box<str>,
     from: Option<NaiveDate>,
     till: Option<NaiveDate>,
+}
+
+impl Index {
+    /// Построить индекс из wire-значений ISS с валидацией инвариантов.
+    pub fn try_new(
+        id: String,
+        short_name: String,
+        from: Option<NaiveDate>,
+        till: Option<NaiveDate>,
+    ) -> Result<Self, ParseIndexError> {
+        let id = IndexId::try_from(id)?;
+        let short_name = short_name.trim();
+        if short_name.is_empty() {
+            return Err(ParseIndexError::EmptyShortName);
+        }
+        if let (Some(from_date), Some(till_date)) = (from, till)
+            && from_date > till_date
+        {
+            return Err(ParseIndexError::InvalidDateRange {
+                from: from_date,
+                till: till_date,
+            });
+        }
+
+        Ok(Self {
+            id,
+            short_name: short_name.to_owned().into_boxed_str(),
+            from,
+            till,
+        })
+    }
+
+    /// Идентификатор индекса (`indexid`).
+    pub fn id(&self) -> &IndexId {
+        &self.id
+    }
+
+    /// Краткое наименование индекса.
+    pub fn short_name(&self) -> &str {
+        self.short_name.as_ref()
+    }
+
+    /// Дата начала действия индекса, если задана.
+    pub fn from(&self) -> Option<NaiveDate> {
+        self.from
+    }
+
+    /// Дата окончания действия индекса, если задана.
+    pub fn till(&self) -> Option<NaiveDate> {
+        self.till
+    }
+
+    /// Проверить, что индекс активен на указанную дату.
+    pub fn is_active_on(&self, date: NaiveDate) -> bool {
+        self.from.is_none_or(|from| from <= date) && self.till.is_none_or(|till| date <= till)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1661,6 +1717,102 @@ pub struct HistoryRecord {
     high: Option<f64>,
     close: Option<f64>,
     volume: Option<u64>,
+}
+
+impl HistoryRecord {
+    /// Построить запись истории из wire-значений ISS с валидацией инвариантов.
+    pub(crate) fn try_new(input: HistoryRecordInput) -> Result<Self, ParseHistoryRecordError> {
+        let HistoryRecordInput {
+            boardid,
+            tradedate,
+            secid,
+            numtrades,
+            value,
+            open,
+            low,
+            high,
+            close,
+            volume,
+        } = input;
+
+        let boardid = BoardId::try_from(boardid)?;
+        let secid = SecId::try_from(secid)?;
+
+        let numtrades = match numtrades {
+            None => None,
+            Some(raw) if raw >= 0 => Some(raw as u64),
+            Some(raw) => return Err(ParseHistoryRecordError::NegativeNumTrades(raw)),
+        };
+
+        let volume = match volume {
+            None => None,
+            Some(raw) if raw >= 0 => Some(raw as u64),
+            Some(raw) => return Err(ParseHistoryRecordError::NegativeVolume(raw)),
+        };
+
+        Ok(Self {
+            boardid,
+            tradedate,
+            secid,
+            numtrades,
+            value,
+            open,
+            low,
+            high,
+            close,
+            volume,
+        })
+    }
+
+    /// Идентификатор режима торгов (`boardid`).
+    pub fn boardid(&self) -> &BoardId {
+        &self.boardid
+    }
+
+    /// Дата торговой сессии (`tradedate`).
+    pub fn tradedate(&self) -> NaiveDate {
+        self.tradedate
+    }
+
+    /// Идентификатор инструмента (`secid`).
+    pub fn secid(&self) -> &SecId {
+        &self.secid
+    }
+
+    /// Количество сделок (`numtrades`).
+    pub fn numtrades(&self) -> Option<u64> {
+        self.numtrades
+    }
+
+    /// Оборот в денежном выражении (`value`).
+    pub fn value(&self) -> Option<f64> {
+        self.value
+    }
+
+    /// Цена открытия (`open`).
+    pub fn open(&self) -> Option<f64> {
+        self.open
+    }
+
+    /// Минимальная цена (`low`).
+    pub fn low(&self) -> Option<f64> {
+        self.low
+    }
+
+    /// Максимальная цена (`high`).
+    pub fn high(&self) -> Option<f64> {
+        self.high
+    }
+
+    /// Цена закрытия (`close`).
+    pub fn close(&self) -> Option<f64> {
+        self.close
+    }
+
+    /// Объём торгов (`volume`).
+    pub fn volume(&self) -> Option<u64> {
+        self.volume
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1771,6 +1923,130 @@ pub struct SecStat {
     last: Option<f64>,
     numtrades: Option<u64>,
     waprice: Option<f64>,
+}
+
+impl SecStat {
+    /// Построить запись `secstats` из wire-значений ISS с валидацией инвариантов.
+    pub(crate) fn try_new(input: SecStatInput) -> Result<Self, ParseSecStatError> {
+        let SecStatInput {
+            secid,
+            boardid,
+            voltoday,
+            valtoday,
+            highbid,
+            lowoffer,
+            lastoffer,
+            lastbid,
+            open,
+            low,
+            high,
+            last,
+            numtrades,
+            waprice,
+        } = input;
+
+        let secid = SecId::try_from(secid)?;
+        let boardid = BoardId::try_from(boardid)?;
+
+        let voltoday = match voltoday {
+            None => None,
+            Some(raw) if raw >= 0 => Some(raw as u64),
+            Some(raw) => return Err(ParseSecStatError::NegativeVolToday(raw)),
+        };
+
+        let numtrades = match numtrades {
+            None => None,
+            Some(raw) if raw >= 0 => Some(raw as u64),
+            Some(raw) => return Err(ParseSecStatError::NegativeNumTrades(raw)),
+        };
+
+        Ok(Self {
+            secid,
+            boardid,
+            voltoday,
+            valtoday,
+            highbid,
+            lowoffer,
+            lastoffer,
+            lastbid,
+            open,
+            low,
+            high,
+            last,
+            numtrades,
+            waprice,
+        })
+    }
+
+    /// Идентификатор инструмента (`SECID`).
+    pub fn secid(&self) -> &SecId {
+        &self.secid
+    }
+
+    /// Идентификатор режима торгов (`BOARDID`).
+    pub fn boardid(&self) -> &BoardId {
+        &self.boardid
+    }
+
+    /// Объём в лотах/штуках за день (`VOLTODAY`).
+    pub fn voltoday(&self) -> Option<u64> {
+        self.voltoday
+    }
+
+    /// Оборот в денежном выражении (`VALTODAY`).
+    pub fn valtoday(&self) -> Option<f64> {
+        self.valtoday
+    }
+
+    /// Лучшая цена спроса (`HIGHBID`).
+    pub fn highbid(&self) -> Option<f64> {
+        self.highbid
+    }
+
+    /// Лучшая цена предложения (`LOWOFFER`).
+    pub fn lowoffer(&self) -> Option<f64> {
+        self.lowoffer
+    }
+
+    /// Последняя цена предложения (`LASTOFFER`).
+    pub fn lastoffer(&self) -> Option<f64> {
+        self.lastoffer
+    }
+
+    /// Последняя цена спроса (`LASTBID`).
+    pub fn lastbid(&self) -> Option<f64> {
+        self.lastbid
+    }
+
+    /// Цена открытия (`OPEN`).
+    pub fn open(&self) -> Option<f64> {
+        self.open
+    }
+
+    /// Минимальная цена (`LOW`).
+    pub fn low(&self) -> Option<f64> {
+        self.low
+    }
+
+    /// Максимальная цена (`HIGH`).
+    pub fn high(&self) -> Option<f64> {
+        self.high
+    }
+
+    /// Последняя цена (`LAST`).
+    pub fn last(&self) -> Option<f64> {
+        self.last
+    }
+
+    /// Количество сделок (`NUMTRADES`).
+    pub fn numtrades(&self) -> Option<u64> {
+        self.numtrades
+    }
+
+    /// Средневзвешенная цена (`WAPRICE`).
+    pub fn waprice(&self) -> Option<f64> {
+        self.waprice
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1930,130 +2206,6 @@ pub(crate) struct SecStatInput {
     pub(crate) waprice: Option<f64>,
 }
 
-impl SecStat {
-    /// Построить запись `secstats` из wire-значений ISS с валидацией инвариантов.
-    pub(crate) fn try_new(input: SecStatInput) -> Result<Self, ParseSecStatError> {
-        let SecStatInput {
-            secid,
-            boardid,
-            voltoday,
-            valtoday,
-            highbid,
-            lowoffer,
-            lastoffer,
-            lastbid,
-            open,
-            low,
-            high,
-            last,
-            numtrades,
-            waprice,
-        } = input;
-
-        let secid = SecId::try_from(secid)?;
-        let boardid = BoardId::try_from(boardid)?;
-
-        let voltoday = match voltoday {
-            None => None,
-            Some(raw) if raw >= 0 => Some(raw as u64),
-            Some(raw) => return Err(ParseSecStatError::NegativeVolToday(raw)),
-        };
-
-        let numtrades = match numtrades {
-            None => None,
-            Some(raw) if raw >= 0 => Some(raw as u64),
-            Some(raw) => return Err(ParseSecStatError::NegativeNumTrades(raw)),
-        };
-
-        Ok(Self {
-            secid,
-            boardid,
-            voltoday,
-            valtoday,
-            highbid,
-            lowoffer,
-            lastoffer,
-            lastbid,
-            open,
-            low,
-            high,
-            last,
-            numtrades,
-            waprice,
-        })
-    }
-
-    /// Идентификатор инструмента (`SECID`).
-    pub fn secid(&self) -> &SecId {
-        &self.secid
-    }
-
-    /// Идентификатор режима торгов (`BOARDID`).
-    pub fn boardid(&self) -> &BoardId {
-        &self.boardid
-    }
-
-    /// Объём в лотах/штуках за день (`VOLTODAY`).
-    pub fn voltoday(&self) -> Option<u64> {
-        self.voltoday
-    }
-
-    /// Оборот в денежном выражении (`VALTODAY`).
-    pub fn valtoday(&self) -> Option<f64> {
-        self.valtoday
-    }
-
-    /// Лучшая цена спроса (`HIGHBID`).
-    pub fn highbid(&self) -> Option<f64> {
-        self.highbid
-    }
-
-    /// Лучшая цена предложения (`LOWOFFER`).
-    pub fn lowoffer(&self) -> Option<f64> {
-        self.lowoffer
-    }
-
-    /// Последняя цена предложения (`LASTOFFER`).
-    pub fn lastoffer(&self) -> Option<f64> {
-        self.lastoffer
-    }
-
-    /// Последняя цена спроса (`LASTBID`).
-    pub fn lastbid(&self) -> Option<f64> {
-        self.lastbid
-    }
-
-    /// Цена открытия (`OPEN`).
-    pub fn open(&self) -> Option<f64> {
-        self.open
-    }
-
-    /// Минимальная цена (`LOW`).
-    pub fn low(&self) -> Option<f64> {
-        self.low
-    }
-
-    /// Максимальная цена (`HIGH`).
-    pub fn high(&self) -> Option<f64> {
-        self.high
-    }
-
-    /// Последняя цена (`LAST`).
-    pub fn last(&self) -> Option<f64> {
-        self.last
-    }
-
-    /// Количество сделок (`NUMTRADES`).
-    pub fn numtrades(&self) -> Option<u64> {
-        self.numtrades
-    }
-
-    /// Средневзвешенная цена (`WAPRICE`).
-    pub fn waprice(&self) -> Option<f64> {
-        self.waprice
-    }
-}
-
 /// Внутренний набор wire-полей для построения [`HistoryRecord`].
 pub(crate) struct HistoryRecordInput {
     pub(crate) boardid: String,
@@ -2068,158 +2220,6 @@ pub(crate) struct HistoryRecordInput {
     pub(crate) volume: Option<i64>,
 }
 
-impl HistoryRecord {
-    /// Построить запись истории из wire-значений ISS с валидацией инвариантов.
-    pub(crate) fn try_new(input: HistoryRecordInput) -> Result<Self, ParseHistoryRecordError> {
-        let HistoryRecordInput {
-            boardid,
-            tradedate,
-            secid,
-            numtrades,
-            value,
-            open,
-            low,
-            high,
-            close,
-            volume,
-        } = input;
-
-        let boardid = BoardId::try_from(boardid)?;
-        let secid = SecId::try_from(secid)?;
-
-        let numtrades = match numtrades {
-            None => None,
-            Some(raw) if raw >= 0 => Some(raw as u64),
-            Some(raw) => return Err(ParseHistoryRecordError::NegativeNumTrades(raw)),
-        };
-
-        let volume = match volume {
-            None => None,
-            Some(raw) if raw >= 0 => Some(raw as u64),
-            Some(raw) => return Err(ParseHistoryRecordError::NegativeVolume(raw)),
-        };
-
-        Ok(Self {
-            boardid,
-            tradedate,
-            secid,
-            numtrades,
-            value,
-            open,
-            low,
-            high,
-            close,
-            volume,
-        })
-    }
-
-    /// Идентификатор режима торгов (`boardid`).
-    pub fn boardid(&self) -> &BoardId {
-        &self.boardid
-    }
-
-    /// Дата торговой сессии (`tradedate`).
-    pub fn tradedate(&self) -> NaiveDate {
-        self.tradedate
-    }
-
-    /// Идентификатор инструмента (`secid`).
-    pub fn secid(&self) -> &SecId {
-        &self.secid
-    }
-
-    /// Количество сделок (`numtrades`).
-    pub fn numtrades(&self) -> Option<u64> {
-        self.numtrades
-    }
-
-    /// Оборот в денежном выражении (`value`).
-    pub fn value(&self) -> Option<f64> {
-        self.value
-    }
-
-    /// Цена открытия (`open`).
-    pub fn open(&self) -> Option<f64> {
-        self.open
-    }
-
-    /// Минимальная цена (`low`).
-    pub fn low(&self) -> Option<f64> {
-        self.low
-    }
-
-    /// Максимальная цена (`high`).
-    pub fn high(&self) -> Option<f64> {
-        self.high
-    }
-
-    /// Цена закрытия (`close`).
-    pub fn close(&self) -> Option<f64> {
-        self.close
-    }
-
-    /// Объём торгов (`volume`).
-    pub fn volume(&self) -> Option<u64> {
-        self.volume
-    }
-}
-
-impl Index {
-    /// Построить индекс из wire-значений ISS с валидацией инвариантов.
-    pub fn try_new(
-        id: String,
-        short_name: String,
-        from: Option<NaiveDate>,
-        till: Option<NaiveDate>,
-    ) -> Result<Self, ParseIndexError> {
-        let id = IndexId::try_from(id)?;
-        let short_name = short_name.trim();
-        if short_name.is_empty() {
-            return Err(ParseIndexError::EmptyShortName);
-        }
-        if let (Some(from_date), Some(till_date)) = (from, till)
-            && from_date > till_date
-        {
-            return Err(ParseIndexError::InvalidDateRange {
-                from: from_date,
-                till: till_date,
-            });
-        }
-
-        Ok(Self {
-            id,
-            short_name: short_name.to_owned().into_boxed_str(),
-            from,
-            till,
-        })
-    }
-
-    /// Идентификатор индекса (`indexid`).
-    pub fn id(&self) -> &IndexId {
-        &self.id
-    }
-
-    /// Краткое наименование индекса.
-    pub fn short_name(&self) -> &str {
-        self.short_name.as_ref()
-    }
-
-    /// Дата начала действия индекса, если задана.
-    pub fn from(&self) -> Option<NaiveDate> {
-        self.from
-    }
-
-    /// Дата окончания действия индекса, если задана.
-    pub fn till(&self) -> Option<NaiveDate> {
-        self.till
-    }
-
-    /// Проверить, что индекс активен на указанную дату.
-    pub fn is_active_on(&self, date: NaiveDate) -> bool {
-        self.from.is_none_or(|from| from <= date) && self.till.is_none_or(|till| date <= till)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 /// Компонент индекса из таблицы `analytics`.
 pub struct IndexAnalytics {
@@ -2231,18 +2231,6 @@ pub struct IndexAnalytics {
     weight: f64,
     tradingsession: u8,
     trade_session_date: NaiveDate,
-}
-
-/// Внутренний набор wire-полей для построения [`IndexAnalytics`].
-pub(crate) struct IndexAnalyticsInput {
-    pub(crate) indexid: String,
-    pub(crate) tradedate: NaiveDate,
-    pub(crate) ticker: String,
-    pub(crate) shortnames: String,
-    pub(crate) secid: String,
-    pub(crate) weight: f64,
-    pub(crate) tradingsession: i64,
-    pub(crate) trade_session_date: NaiveDate,
 }
 
 impl IndexAnalytics {
@@ -2330,6 +2318,18 @@ impl IndexAnalytics {
     pub fn trade_session_date(&self) -> NaiveDate {
         self.trade_session_date
     }
+}
+
+/// Внутренний набор wire-полей для построения [`IndexAnalytics`].
+pub(crate) struct IndexAnalyticsInput {
+    pub(crate) indexid: String,
+    pub(crate) tradedate: NaiveDate,
+    pub(crate) ticker: String,
+    pub(crate) shortnames: String,
+    pub(crate) secid: String,
+    pub(crate) weight: f64,
+    pub(crate) tradingsession: i64,
+    pub(crate) trade_session_date: NaiveDate,
 }
 
 /// Итератор по «актуальным» индексам: с максимальной датой `till`.

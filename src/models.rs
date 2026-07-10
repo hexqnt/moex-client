@@ -1,9 +1,5 @@
 //! Публичные доменные модели ISS и связанные ошибки парсинга.
 
-mod domain;
-mod selectors;
-mod wire;
-
 pub use domain::{
     Board, BoardId, BuySell, Candle, CandleBorder, CandleInterval, CandleOhlcv, CandleQuery,
     Engine, EngineId, EngineName, Event, HistoryDates, HistoryRecord, Index, IndexAnalytics,
@@ -26,6 +22,10 @@ pub(crate) use wire::{
 pub(crate) use wire::{EventRow, SiteNewsRow};
 #[cfg(feature = "history")]
 pub(crate) use wire::{HistoryDatesRow, HistoryRow};
+
+mod domain;
+mod selectors;
+mod wire;
 
 #[cfg(test)]
 mod tests;

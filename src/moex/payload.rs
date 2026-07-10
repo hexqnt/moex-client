@@ -61,29 +61,25 @@ impl RawTables {
     ///
     /// Метод потребляет только выбранный верхнеуровневый блок и не вызывает
     /// повторный разбор всего payload-а.
-    pub fn take_rows<T>(&mut self, table: impl Into<String>) -> Result<Vec<T>, MoexError>
+    pub fn take_rows<T>(&mut self, table: impl AsRef<str>) -> Result<Vec<T>, MoexError>
     where
         T: serde::de::DeserializeOwned,
     {
-        let table: Box<str> = table.into().into_boxed_str();
-        let raw_table =
-            self.blocks
-                .remove(table.as_ref())
-                .ok_or_else(|| MoexError::MissingRawTable {
-                    endpoint: self.endpoint.clone(),
-                    table: table.clone(),
-                })?;
+        let table = table.as_ref();
+        let raw_table = self
+            .blocks
+            .remove(table)
+            .ok_or_else(|| MoexError::MissingRawTable {
+                endpoint: self.endpoint.clone(),
+                table: table.into(),
+            })?;
         // Декодируем только выбранный блок, не затрагивая остальные таблицы.
         let table_payload =
             serde_json::from_str(raw_table.get()).map_err(|source| MoexError::Decode {
                 endpoint: format!("{} (table={})", self.endpoint, table).into_boxed_str(),
                 source,
             })?;
-        decode_raw_table_rows_payload_with_context(
-            table_payload,
-            self.endpoint.as_ref(),
-            table.as_ref(),
-        )
+        decode_raw_table_rows_payload_with_context(table_payload, self.endpoint.as_ref(), table)
     }
 }
 
@@ -190,22 +186,6 @@ impl<'de> Visitor<'de> for RawIssTableRowsVisitor<'_> {
     }
 }
 
-fn decode_single_raw_table_payload(
-    payload: &str,
-    table: &str,
-) -> Result<Option<RawIssTableRowsPayload>, serde_json::Error> {
-    let mut deserializer = serde_json::Deserializer::from_str(payload);
-    RawIssTableRowsSeed { table }.deserialize(&mut deserializer)
-}
-
-fn decode_top_level_raw_blocks(
-    payload: &str,
-) -> Result<HashMap<Box<str>, Box<RawValue>>, serde_json::Error> {
-    // Сохраняем каждый верхнеуровневый блок как `RawValue`, чтобы декодировать
-    // конкретные таблицы позже по запросу пользователя.
-    serde_json::from_str(payload)
-}
-
 #[derive(Debug, serde::Deserialize)]
 struct BorrowedRawIssTableRowsPayload<'a> {
     #[serde(borrow)]
@@ -258,6 +238,22 @@ impl<'de> Visitor<'de> for BorrowedRawIssTableRowsVisitor<'_> {
     }
 }
 
+fn decode_single_raw_table_payload(
+    payload: &str,
+    table: &str,
+) -> Result<Option<RawIssTableRowsPayload>, serde_json::Error> {
+    let mut deserializer = serde_json::Deserializer::from_str(payload);
+    RawIssTableRowsSeed { table }.deserialize(&mut deserializer)
+}
+
+fn decode_top_level_raw_blocks(
+    payload: &str,
+) -> Result<HashMap<Box<str>, Box<RawValue>>, serde_json::Error> {
+    // Сохраняем каждый верхнеуровневый блок как `RawValue`, чтобы декодировать
+    // конкретные таблицы позже по запросу пользователя.
+    serde_json::from_str(payload)
+}
+
 fn decode_single_raw_table_payload_borrowed<'a>(
     payload: &'a str,
     table: &str,
@@ -295,8 +291,6 @@ fn decode_raw_table_rows_payload_with_context<T>(
 where
     T: serde::de::DeserializeOwned,
 {
-    let endpoint: Box<str> = endpoint.to_owned().into_boxed_str();
-    let table: Box<str> = table.to_owned().into_boxed_str();
     let RawIssTableRowsPayload { columns, data } = table_payload;
     let expected_width = columns.len();
     let mut rows = Vec::with_capacity(data.len());
@@ -305,8 +299,8 @@ where
         let actual_width = values.len();
         if actual_width != expected_width {
             return Err(MoexError::InvalidRawTableRowWidth {
-                endpoint: endpoint.clone(),
-                table: table.clone(),
+                endpoint: endpoint.into(),
+                table: table.into(),
                 row,
                 expected: expected_width,
                 actual: actual_width,
@@ -315,8 +309,8 @@ where
 
         let decoded = decode_raw_table_row::<T>(&columns, values).map_err(|source| {
             MoexError::InvalidRawTableRow {
-                endpoint: endpoint.clone(),
-                table: table.clone(),
+                endpoint: endpoint.into(),
+                table: table.into(),
                 row,
                 source,
             }
@@ -335,19 +329,16 @@ pub(super) fn decode_raw_table_rows_json_with_endpoint<T>(
 where
     T: serde::de::DeserializeOwned,
 {
-    let endpoint = endpoint.to_owned().into_boxed_str();
-    let table = table.to_owned().into_boxed_str();
-
-    let table_payload = decode_single_raw_table_payload(payload, table.as_ref())
+    let table_payload = decode_single_raw_table_payload(payload, table)
         .map_err(|source| MoexError::Decode {
-            endpoint: endpoint.clone(),
+            endpoint: endpoint.into(),
             source,
         })?
         .ok_or_else(|| MoexError::MissingRawTable {
-            endpoint: endpoint.clone(),
-            table: table.clone(),
+            endpoint: endpoint.into(),
+            table: table.into(),
         })?;
-    decode_raw_table_rows_payload_with_context(table_payload, endpoint.as_ref(), table.as_ref())
+    decode_raw_table_rows_payload_with_context(table_payload, endpoint, table)
 }
 
 pub(super) fn decode_raw_tables_json_with_endpoint(

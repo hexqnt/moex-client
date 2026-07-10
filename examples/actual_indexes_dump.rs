@@ -36,6 +36,22 @@ struct ResolvedSnapshot {
     last: Option<f64>,
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct RawSecuritySnapshotRow {
+    #[serde(rename = "SECID")]
+    secid: String,
+    #[serde(rename = "LOTSIZE", default)]
+    lot_size: Option<i64>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct RawMarketdataSnapshotRow {
+    #[serde(rename = "SECID")]
+    secid: String,
+    #[serde(rename = "LAST", default)]
+    last: Option<f64>,
+}
+
 fn main() -> Result<(), ExampleError> {
     let moex_client = Client::builder()
         .user_agent_from_crate()
@@ -260,22 +276,6 @@ fn parse_board_snapshots_page(
     }
 
     Ok((snapshots, first_secid_on_page))
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct RawSecuritySnapshotRow {
-    #[serde(rename = "SECID")]
-    secid: String,
-    #[serde(rename = "LOTSIZE", default)]
-    lot_size: Option<i64>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct RawMarketdataSnapshotRow {
-    #[serde(rename = "SECID")]
-    secid: String,
-    #[serde(rename = "LAST", default)]
-    last: Option<f64>,
 }
 
 fn retry_policy() -> RetryPolicy {

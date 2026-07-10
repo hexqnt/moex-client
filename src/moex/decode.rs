@@ -18,7 +18,6 @@ use super::constants::{
 use super::constants::{EVENTS_ENDPOINT, SITENEWS_ENDPOINT};
 #[cfg(feature = "history")]
 use super::constants::{HISTORY_DATES_ENDPOINT_TEMPLATE, HISTORY_ENDPOINT_TEMPLATE};
-pub use super::payload::{RawTableView, RawTables};
 use super::payload::{
     decode_board_security_snapshots_json_with_endpoint, decode_boards_json_with_endpoint,
     decode_candle_borders_json_with_endpoint, decode_candles_json_with_endpoint,
@@ -34,6 +33,8 @@ use super::payload::{
 use super::payload::{decode_events_json_with_endpoint, decode_sitenews_json_with_endpoint};
 #[cfg(feature = "history")]
 use super::payload::{decode_history_dates_json_with_endpoint, decode_history_json_with_endpoint};
+
+pub use super::payload::{RawTableView, RawTables};
 
 /// Разобрать JSON-представление `indices` ISS в доменные типы.
 pub fn indexes_json(payload: &str) -> Result<Vec<Index>, MoexError> {
