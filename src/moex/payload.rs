@@ -487,7 +487,14 @@ pub(super) fn decode_board_security_snapshots_json_with_endpoint(
         last_by_secid.insert(secid, (row, last));
     }
 
-    let mut snapshots = Vec::with_capacity(payload.securities.data.len().max(last_by_secid.len()));
+    // В худшем случае таблицы не пересекаются по SECID, поэтому итог содержит
+    // сумму строк обеих таблиц. Резервируем её сразу, исключая рост Vec.
+    let snapshot_capacity = payload
+        .securities
+        .data
+        .len()
+        .saturating_add(last_by_secid.len());
+    let mut snapshots = Vec::with_capacity(snapshot_capacity);
     for (row, BoardSecurityRow(secid, lot_size_raw)) in
         payload.securities.data.into_iter().enumerate()
     {

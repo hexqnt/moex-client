@@ -6,6 +6,17 @@ use std::str::FromStr;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use thiserror::Error;
 
+/// Преобразует строку ISS в компактное владение без дополнительного копирования,
+/// если нормализация пробелов не меняет содержимое.
+fn into_trimmed_boxed_str(value: String) -> Box<str> {
+    let trimmed = value.trim();
+    if trimmed.len() == value.len() {
+        value.into_boxed_str()
+    } else {
+        trimmed.into()
+    }
+}
+
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 /// Ошибки построения [`Index`].
 pub enum ParseIndexError {
@@ -539,13 +550,12 @@ impl TryFrom<String> for BuySell {
     type Error = ParseOrderbookError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        let value = value.trim();
-        match value {
+        match value.trim() {
             "B" => Ok(Self::Buy),
             "S" => Ok(Self::Sell),
-            _ => Err(ParseOrderbookError::InvalidSide(
-                value.to_owned().into_boxed_str(),
-            )),
+            _ => Err(ParseOrderbookError::InvalidSide(into_trimmed_boxed_str(
+                value,
+            ))),
         }
     }
 }
@@ -577,7 +587,10 @@ impl TryFrom<String> for IndexId {
     type Error = ParseIndexError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::try_from(value.as_str())
+        if value.trim().is_empty() {
+            return Err(ParseIndexError::EmptyIndexId);
+        }
+        Ok(Self(into_trimmed_boxed_str(value)))
     }
 }
 
@@ -634,7 +647,14 @@ impl TryFrom<String> for EngineName {
     type Error = ParseEngineNameError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::try_from(value.as_str())
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return Err(ParseEngineNameError::Empty);
+        }
+        if trimmed.contains('/') {
+            return Err(ParseEngineNameError::ContainsSlash);
+        }
+        Ok(Self(into_trimmed_boxed_str(value)))
     }
 }
 
@@ -694,7 +714,14 @@ impl TryFrom<String> for SecId {
     type Error = ParseSecIdError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::try_from(value.as_str())
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return Err(ParseSecIdError::Empty);
+        }
+        if trimmed.contains('/') {
+            return Err(ParseSecIdError::ContainsSlash);
+        }
+        Ok(Self(into_trimmed_boxed_str(value)))
     }
 }
 
@@ -754,7 +781,14 @@ impl TryFrom<String> for BoardId {
     type Error = ParseBoardIdError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::try_from(value.as_str())
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return Err(ParseBoardIdError::Empty);
+        }
+        if trimmed.contains('/') {
+            return Err(ParseBoardIdError::ContainsSlash);
+        }
+        Ok(Self(into_trimmed_boxed_str(value)))
     }
 }
 
@@ -814,7 +848,14 @@ impl TryFrom<String> for MarketName {
     type Error = ParseMarketNameError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::try_from(value.as_str())
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return Err(ParseMarketNameError::Empty);
+        }
+        if trimmed.contains('/') {
+            return Err(ParseMarketNameError::ContainsSlash);
+        }
+        Ok(Self(into_trimmed_boxed_str(value)))
     }
 }
 
@@ -884,15 +925,14 @@ impl Engine {
 
         let name = EngineName::try_from(name)?;
 
-        let title = title.trim();
-        if title.is_empty() {
+        if title.trim().is_empty() {
             return Err(ParseEngineError::EmptyTitle);
         }
 
         Ok(Self {
             id,
             name,
-            title: title.to_owned().into_boxed_str(),
+            title: into_trimmed_boxed_str(title),
         })
     }
 
@@ -949,15 +989,14 @@ impl Market {
 
         let name = MarketName::try_from(name)?;
 
-        let title = title.trim();
-        if title.is_empty() {
+        if title.trim().is_empty() {
             return Err(ParseMarketError::EmptyTitle);
         }
 
         Ok(Self {
             id,
             name,
-            title: title.to_owned().into_boxed_str(),
+            title: into_trimmed_boxed_str(title),
         })
     }
 
@@ -1009,8 +1048,7 @@ impl Board {
 
         let boardid = BoardId::try_from(boardid)?;
 
-        let title = title.trim();
-        if title.is_empty() {
+        if title.trim().is_empty() {
             return Err(ParseBoardError::EmptyTitle);
         }
 
@@ -1024,7 +1062,7 @@ impl Board {
             id,
             board_group_id,
             boardid,
-            title: title.to_owned().into_boxed_str(),
+            title: into_trimmed_boxed_str(title),
             is_traded,
         })
     }
@@ -1129,26 +1167,23 @@ impl Security {
     ) -> Result<Self, ParseSecurityError> {
         let secid = SecId::try_from(secid)?;
 
-        let shortname = shortname.trim();
-        if shortname.is_empty() {
+        if shortname.trim().is_empty() {
             return Err(ParseSecurityError::EmptyShortname);
         }
 
-        let secname = secname.trim();
-        if secname.is_empty() {
+        if secname.trim().is_empty() {
             return Err(ParseSecurityError::EmptySecname);
         }
 
-        let status = status.trim();
-        if status.is_empty() {
+        if status.trim().is_empty() {
             return Err(ParseSecurityError::EmptyStatus);
         }
 
         Ok(Self {
             secid,
-            shortname: shortname.to_owned().into_boxed_str(),
-            secname: secname.to_owned().into_boxed_str(),
-            status: status.to_owned().into_boxed_str(),
+            shortname: into_trimmed_boxed_str(shortname),
+            secname: into_trimmed_boxed_str(secname),
+            status: into_trimmed_boxed_str(status),
         })
     }
 
@@ -1630,8 +1665,7 @@ impl Index {
         till: Option<NaiveDate>,
     ) -> Result<Self, ParseIndexError> {
         let id = IndexId::try_from(id)?;
-        let short_name = short_name.trim();
-        if short_name.is_empty() {
+        if short_name.trim().is_empty() {
             return Err(ParseIndexError::EmptyShortName);
         }
         if let (Some(from_date), Some(till_date)) = (from, till)
@@ -1645,7 +1679,7 @@ impl Index {
 
         Ok(Self {
             id,
-            short_name: short_name.to_owned().into_boxed_str(),
+            short_name: into_trimmed_boxed_str(short_name),
             from,
             till,
         })
@@ -1838,8 +1872,7 @@ impl Turnover {
         updatetime: NaiveDateTime,
         title: String,
     ) -> Result<Self, ParseTurnoverError> {
-        let name = name.trim();
-        if name.is_empty() {
+        if name.trim().is_empty() {
             return Err(ParseTurnoverError::EmptyName);
         }
 
@@ -1854,19 +1887,18 @@ impl Turnover {
             Some(raw) => return Err(ParseTurnoverError::NegativeNumTrades(raw)),
         };
 
-        let title = title.trim();
-        if title.is_empty() {
+        if title.trim().is_empty() {
             return Err(ParseTurnoverError::EmptyTitle);
         }
 
         Ok(Self {
-            name: name.to_owned().into_boxed_str(),
+            name: into_trimmed_boxed_str(name),
             id,
             valtoday,
             valtoday_usd,
             numtrades,
             updatetime,
-            title: title.to_owned().into_boxed_str(),
+            title: into_trimmed_boxed_str(title),
         })
     }
 
@@ -2073,19 +2105,17 @@ impl SiteNews {
         }
         let id = u64::try_from(id).map_err(|_| ParseSiteNewsError::IdOutOfRange(id))?;
 
-        let tag = tag.trim();
-        if tag.is_empty() {
+        if tag.trim().is_empty() {
             return Err(ParseSiteNewsError::EmptyTag);
         }
-        let title = title.trim();
-        if title.is_empty() {
+        if title.trim().is_empty() {
             return Err(ParseSiteNewsError::EmptyTitle);
         }
 
         Ok(Self {
             id,
-            tag: tag.to_owned().into_boxed_str(),
-            title: title.to_owned().into_boxed_str(),
+            tag: into_trimmed_boxed_str(tag),
+            title: into_trimmed_boxed_str(title),
             published_at,
             modified_at,
         })
@@ -2141,19 +2171,17 @@ impl Event {
         }
         let id = u64::try_from(id).map_err(|_| ParseEventError::IdOutOfRange(id))?;
 
-        let tag = tag.trim();
-        if tag.is_empty() {
+        if tag.trim().is_empty() {
             return Err(ParseEventError::EmptyTag);
         }
-        let title = title.trim();
-        if title.is_empty() {
+        if title.trim().is_empty() {
             return Err(ParseEventError::EmptyTitle);
         }
 
         Ok(Self {
             id,
-            tag: tag.to_owned().into_boxed_str(),
-            title: title.to_owned().into_boxed_str(),
+            tag: into_trimmed_boxed_str(tag),
+            title: into_trimmed_boxed_str(title),
             from,
             modified_at,
         })
@@ -2251,8 +2279,7 @@ impl IndexAnalytics {
         let ticker = SecId::try_from(ticker).map_err(ParseIndexAnalyticsError::InvalidTicker)?;
         let secid = SecId::try_from(secid).map_err(ParseIndexAnalyticsError::InvalidSecId)?;
 
-        let shortnames = shortnames.trim();
-        if shortnames.is_empty() {
+        if shortnames.trim().is_empty() {
             return Err(ParseIndexAnalyticsError::EmptyShortnames);
         }
         if !weight.is_finite() {
@@ -2271,7 +2298,7 @@ impl IndexAnalytics {
             indexid,
             tradedate,
             ticker,
-            shortnames: shortnames.to_owned().into_boxed_str(),
+            shortnames: into_trimmed_boxed_str(shortnames),
             secid,
             weight,
             tradingsession: tradingsession as u8,
