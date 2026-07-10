@@ -11,6 +11,14 @@ homepage = "https://github.com/hexqnt/moex-client"
 documentation = "https://docs.rs/moex-client"
 keywords = ["moex", "iss", "api-client", "exchange", "finance"]
 categories = ["api-bindings", "web-programming::http-client"]
+include = [
+    "src/**",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE*",
+    "examples/**",
+    "tests/**",
+]
 
 [profile.dev]
 opt-level = 1
