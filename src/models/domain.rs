@@ -6,17 +6,6 @@ use std::str::FromStr;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use thiserror::Error;
 
-/// Преобразует строку ISS в компактное владение без дополнительного копирования,
-/// если нормализация пробелов не меняет содержимое.
-fn into_trimmed_boxed_str(value: String) -> Box<str> {
-    let trimmed = value.trim();
-    if trimmed.len() == value.len() {
-        value.into_boxed_str()
-    } else {
-        trimmed.into()
-    }
-}
-
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 /// Ошибки построения [`Index`].
 pub enum ParseIndexError {
@@ -2434,6 +2423,17 @@ pub(crate) struct IndexAnalyticsInput {
     pub(crate) weight: f64,
     pub(crate) tradingsession: i64,
     pub(crate) trade_session_date: NaiveDate,
+}
+
+/// Преобразует строку ISS в компактное владение без дополнительного копирования,
+/// если нормализация пробелов не меняет содержимое.
+fn into_trimmed_boxed_str(value: String) -> Box<str> {
+    let trimmed = value.trim();
+    if trimmed.len() == value.len() {
+        value.into_boxed_str()
+    } else {
+        trimmed.into()
+    }
 }
 
 /// Итератор по «актуальным» индексам: с максимальной датой `till`.
