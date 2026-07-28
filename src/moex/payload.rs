@@ -607,12 +607,8 @@ pub(super) fn decode_history_json_with_endpoint(
     payload: &str,
     endpoint: &str,
 ) -> Result<Vec<HistoryRecord>, MoexError> {
-    let payload: HistoryResponse =
-        serde_json::from_str(payload).map_err(|source| MoexError::Decode {
-            endpoint: endpoint.to_owned().into_boxed_str(),
-            source,
-        })?;
-    convert_history_rows(payload.history.data, endpoint)
+    let rows = decode_raw_table_rows_json_with_endpoint(payload, endpoint, "history")?;
+    convert_history_rows(rows, endpoint)
 }
 
 pub(super) fn decode_turnovers_json_with_endpoint(

@@ -84,7 +84,7 @@ pub(super) const SECSTATS_COLUMNS: &str = "SECID,BOARDID,VOLTODAY,VALTODAY,HIGHB
 pub(super) const HISTORY_COLUMNS_PARAM: &str = "history.columns";
 #[cfg(feature = "history")]
 pub(super) const HISTORY_COLUMNS: &str =
-    "BOARDID,TRADEDATE,SECID,NUMTRADES,VALUE,OPEN,LOW,HIGH,CLOSE,VOLUME";
+    "BOARDID,TRADEDATE,SECID,NUMTRADES,VALUE,OPEN,LOW,HIGH,CLOSE,VOLUME,DURATION,YIELD";
 
 // Общие query-параметры пагинации/фильтрации.
 pub(super) const FROM_PARAM: &str = "from";

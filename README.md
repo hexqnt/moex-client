@@ -386,8 +386,13 @@ fn parse_borrowed(payload: &str) -> Result<(), moex_client::MoexError> {
 
 ## Scoped API, PageRequest и paginator-ы
 
-Для endpoint-ов `index_analytics/securities/trades/candles` доступен единый режим страниц через `PageRequest`
+Для endpoint-ов `index_analytics/securities/trades/candles/history` доступен единый режим страниц через `PageRequest`
 и fluent scope с фиксацией `engine/market/board/security`.
+
+Для `history` тип `HistoryQuery` добавляет серверные границы `from`/`till`.
+Market-specific поля `DURATION` и `YIELD` доступны через
+`HistoryRecord::duration_days()` и `HistoryRecord::yield_percent()` и возвращают `None`,
+если соответствующей колонки нет в ответе конкретного рынка.
 
 Также есть ленивые paginator-объекты с `next_page()/all()`:
 
@@ -395,7 +400,10 @@ fn parse_borrowed(payload: &str) -> Result<(), moex_client::MoexError> {
 use std::num::NonZeroU32;
 
 use moex_client::blocking::Client;
-use moex_client::models::{BoardId, CandleQuery, EngineName, MarketName, PageRequest, SecId};
+use chrono::NaiveDate;
+use moex_client::models::{
+    BoardId, CandleQuery, EngineName, HistoryQuery, MarketName, PageRequest, SecId,
+};
 
 fn demo_scoped(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
     let engine = EngineName::try_from("stock")?;
@@ -432,6 +440,18 @@ fn demo_scoped(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
     let _history_dates = security_scope.history_dates()?;
 
     let _history = security_scope.history(PageRequest::first_page())?;
+
+    let history_query = HistoryQuery::try_new(
+        Some(NaiveDate::from_ymd_opt(2024, 1, 1).expect("valid date")),
+        Some(NaiveDate::from_ymd_opt(2024, 12, 31).expect("valid date")),
+    )?;
+    let filtered_history = security_scope.history_filtered(
+        history_query,
+        PageRequest::all(NonZeroU32::new(1000).expect("non-zero")),
+    )?;
+    let _bond_metrics = filtered_history
+        .iter()
+        .map(|record| (record.duration_days(), record.yield_percent()));
 
     let _trades = security_scope
         .trades(PageRequest::all(NonZeroU32::new(1000).expect("non-zero")))?;

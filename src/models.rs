@@ -2,15 +2,16 @@
 
 pub use domain::{
     Board, BoardId, BuySell, Candle, CandleBorder, CandleInterval, CandleOhlcv, CandleQuery,
-    Engine, EngineId, EngineName, Event, HistoryDates, HistoryRecord, Index, IndexAnalytics,
-    IndexId, Market, MarketId, MarketName, OrderbookLevel, PageRequest, Pagination,
+    Engine, EngineId, EngineName, Event, HistoryDates, HistoryQuery, HistoryRecord, Index,
+    IndexAnalytics, IndexId, Market, MarketId, MarketName, OrderbookLevel, PageRequest, Pagination,
     ParseBoardError, ParseBoardIdError, ParseCandleBorderError, ParseCandleError,
     ParseCandleIntervalError, ParseCandleQueryError, ParseEngineError, ParseEngineNameError,
-    ParseEventError, ParseHistoryDatesError, ParseHistoryRecordError, ParseIndexAnalyticsError,
-    ParseIndexError, ParseMarketError, ParseMarketNameError, ParseOrderbookError, ParseSecIdError,
-    ParseSecStatError, ParseSecurityBoardError, ParseSecurityError, ParseSecuritySnapshotError,
-    ParseSiteNewsError, ParseTradeError, ParseTurnoverError, SecId, SecStat, Security,
-    SecurityBoard, SecuritySnapshot, SiteNews, Trade, Turnover, actual_indexes,
+    ParseEventError, ParseHistoryDatesError, ParseHistoryQueryError, ParseHistoryRecordError,
+    ParseIndexAnalyticsError, ParseIndexError, ParseMarketError, ParseMarketNameError,
+    ParseOrderbookError, ParseSecIdError, ParseSecStatError, ParseSecurityBoardError,
+    ParseSecurityError, ParseSecuritySnapshotError, ParseSiteNewsError, ParseTradeError,
+    ParseTurnoverError, SecId, SecStat, Security, SecurityBoard, SecuritySnapshot, SiteNews, Trade,
+    Turnover, actual_indexes,
 };
 pub use selectors::{IndexAnalyticsExt, IndexesExt, SecurityBoardsExt};
 

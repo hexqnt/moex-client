@@ -5,14 +5,14 @@
 
 use serde::Deserialize;
 
+#[cfg(feature = "history")]
+use crate::models::HistoryDatesRow;
 use crate::models::{
     BoardRow, CandleBorderRow, CandleRow, EngineRow, IndexAnalyticsRow, IndexRow, MarketRow,
     OrderbookLevelRow, SecStatRow, SecurityRow, TradeRow, TurnoverRow,
 };
 #[cfg(feature = "news")]
 use crate::models::{EventRow, SiteNewsRow};
-#[cfg(feature = "history")]
-use crate::models::{HistoryDatesRow, HistoryRow};
 
 #[derive(Debug, Deserialize)]
 /// Универсальное представление табличного блока ISS (`...: { data: [...] }`).
@@ -51,13 +51,6 @@ pub(super) struct SiteNewsResponse {
 /// Ответ endpoint `events`.
 pub(super) struct EventsResponse {
     pub(super) events: IssTable<EventRow>,
-}
-
-#[cfg(feature = "history")]
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `history`.
-pub(super) struct HistoryResponse {
-    pub(super) history: IssTable<HistoryRow>,
 }
 
 #[derive(Debug, Deserialize)]

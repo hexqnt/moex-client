@@ -144,18 +144,32 @@ pub(crate) struct HistoryDatesRow(
 
 #[derive(Debug, Deserialize)]
 /// Строка таблицы `history`.
-pub(crate) struct HistoryRow(
-    pub(crate) String,
-    #[serde(deserialize_with = "date_serde::deserialize")] pub(crate) NaiveDate,
-    pub(crate) String,
-    pub(crate) Option<i64>,
-    pub(crate) Option<f64>,
-    pub(crate) Option<f64>,
-    pub(crate) Option<f64>,
-    pub(crate) Option<f64>,
-    pub(crate) Option<f64>,
-    pub(crate) Option<i64>,
-);
+pub(crate) struct HistoryRow {
+    #[serde(rename = "BOARDID")]
+    pub(crate) boardid: String,
+    #[serde(rename = "TRADEDATE", deserialize_with = "date_serde::deserialize")]
+    pub(crate) tradedate: NaiveDate,
+    #[serde(rename = "SECID")]
+    pub(crate) secid: String,
+    #[serde(rename = "NUMTRADES", default)]
+    pub(crate) numtrades: Option<i64>,
+    #[serde(rename = "VALUE", default)]
+    pub(crate) value: Option<f64>,
+    #[serde(rename = "OPEN", default)]
+    pub(crate) open: Option<f64>,
+    #[serde(rename = "LOW", default)]
+    pub(crate) low: Option<f64>,
+    #[serde(rename = "HIGH", default)]
+    pub(crate) high: Option<f64>,
+    #[serde(rename = "CLOSE", default)]
+    pub(crate) close: Option<f64>,
+    #[serde(rename = "VOLUME", default)]
+    pub(crate) volume: Option<i64>,
+    #[serde(rename = "DURATION", default)]
+    pub(crate) duration_days: Option<f64>,
+    #[serde(rename = "YIELD", default)]
+    pub(crate) yield_percent: Option<f64>,
+}
 
 #[derive(Debug, Deserialize)]
 /// Строка таблицы `turnovers`.
@@ -310,16 +324,18 @@ impl TryFrom<HistoryRow> for HistoryRecord {
 
     fn try_from(row: HistoryRow) -> Result<Self, Self::Error> {
         Self::try_new(HistoryRecordInput {
-            boardid: row.0,
-            tradedate: row.1,
-            secid: row.2,
-            numtrades: row.3,
-            value: row.4,
-            open: row.5,
-            low: row.6,
-            high: row.7,
-            close: row.8,
-            volume: row.9,
+            boardid: row.boardid,
+            tradedate: row.tradedate,
+            secid: row.secid,
+            numtrades: row.numtrades,
+            value: row.value,
+            open: row.open,
+            low: row.low,
+            high: row.high,
+            close: row.close,
+            volume: row.volume,
+            duration_days: row.duration_days,
+            yield_percent: row.yield_percent,
         })
     }
 }

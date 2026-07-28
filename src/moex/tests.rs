@@ -10,13 +10,15 @@ use reqwest::{
 };
 use serde::Deserialize;
 
-#[cfg(feature = "history")]
-use crate::models::HistoryDates;
 use crate::models::{
     BoardId, CandleInterval, CandleQuery, EngineName, IndexId, MarketName, Pagination, SecId,
     Security,
 };
+#[cfg(feature = "history")]
+use crate::models::{HistoryDates, HistoryQuery};
 
+#[cfg(feature = "history")]
+use super::client::append_history_query_to_url;
 #[cfg(feature = "history")]
 use super::client::optional_single_history_dates;
 use super::client::{
@@ -107,10 +109,10 @@ fn parse_typical_iss_history_payload() {
     let payload = r#"
         {
             "history": {
-                "columns": ["BOARDID", "TRADEDATE", "SECID", "NUMTRADES", "VALUE", "OPEN", "LOW", "HIGH", "CLOSE", "VOLUME"],
+                "columns": ["BOARDID", "TRADEDATE", "SECID", "NUMTRADES", "VALUE", "OPEN", "LOW", "HIGH", "CLOSE", "VOLUME", "DURATION", "YIELD"],
                 "data": [
-                    ["TQBR", "2026-03-05", "SBER", 120345, 123456789.5, 314.0, 310.0, 315.2, 314.8, 3900000],
-                    ["TQBR", "2026-03-06", "SBER", 118000, 118000000.0, 314.8, 311.5, 316.0, 315.3, 3700000]
+                    ["TQBR", "2026-03-05", "SBER", 120345, 123456789.5, 314.0, 310.0, 315.2, 314.8, 3900000, 1733, 15.49],
+                    ["TQBR", "2026-03-06", "SBER", 118000, 118000000.0, 314.8, 311.5, 316.0, 315.3, 3700000, 1727, 15.64]
                 ]
             }
         }
@@ -121,6 +123,54 @@ fn parse_typical_iss_history_payload() {
     assert_eq!(history[0].secid().as_str(), "SBER");
     assert_eq!(history[0].tradedate(), d("2026-03-05"));
     assert_eq!(history[1].numtrades(), Some(118_000));
+    assert_eq!(history[0].duration_days(), Some(1_733.0));
+    assert_eq!(history[0].yield_percent(), Some(15.49));
+}
+
+#[cfg(feature = "history")]
+#[test]
+fn history_decoder_maps_market_specific_fields_by_column_name() {
+    let payload = r#"
+        {
+            "history": {
+                "columns": ["YIELD", "SECID", "DURATION", "TRADEDATE", "BOARDID"],
+                "data": [
+                    [15.49, "RGBITR", 1733.5, "2026-03-05", "SNDX"]
+                ]
+            }
+        }
+        "#;
+
+    let history = decode::history_json(payload).expect("valid payload");
+
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].boardid().as_str(), "SNDX");
+    assert_eq!(history[0].secid().as_str(), "RGBITR");
+    assert_eq!(history[0].tradedate(), d("2026-03-05"));
+    assert_eq!(history[0].duration_days(), Some(1_733.5));
+    assert_eq!(history[0].yield_percent(), Some(15.49));
+}
+
+#[cfg(feature = "history")]
+#[test]
+fn history_decoder_accepts_payload_without_market_specific_fields() {
+    let payload = r#"
+        {
+            "history": {
+                "columns": ["BOARDID", "TRADEDATE", "SECID", "CLOSE"],
+                "data": [
+                    ["TQBR", "2026-03-05", "SBER", 314.8]
+                ]
+            }
+        }
+        "#;
+
+    let history = decode::history_json(payload).expect("valid payload");
+
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].close(), Some(314.8));
+    assert_eq!(history[0].duration_days(), None);
+    assert_eq!(history[0].yield_percent(), None);
 }
 
 #[cfg(feature = "history")]
@@ -1157,6 +1207,35 @@ fn append_candle_query_to_url_uses_datetime_format() {
         query_pairs
             .iter()
             .any(|(k, v)| k == TILL_PARAM && v == "2026-03-06 18:45:00")
+    );
+}
+
+#[cfg(feature = "history")]
+#[test]
+fn append_history_query_to_url_uses_date_format() {
+    let mut url = Url::parse("https://example.test/iss/history.json").expect("valid URL");
+    let query = HistoryQuery::default()
+        .with_from(d("2026-03-01"))
+        .expect("valid from")
+        .with_till(d("2026-03-06"))
+        .expect("valid till");
+
+    append_history_query_to_url(&mut url, query);
+
+    let query_pairs: Vec<(String, String)> = url
+        .query_pairs()
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect();
+
+    assert!(
+        query_pairs
+            .iter()
+            .any(|(k, v)| k == FROM_PARAM && v == "2026-03-01")
+    );
+    assert!(
+        query_pairs
+            .iter()
+            .any(|(k, v)| k == TILL_PARAM && v == "2026-03-06")
     );
 }
 

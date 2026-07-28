@@ -56,6 +56,19 @@ pub enum ParseHistoryDatesError {
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
+/// Ошибки построения [`HistoryQuery`].
+pub enum ParseHistoryQueryError {
+    /// В запросе истории `from` больше `till`.
+    #[error("invalid history query date range: from={from} is after till={till}")]
+    InvalidDateRange {
+        /// Начальная дата выборки.
+        from: NaiveDate,
+        /// Конечная дата выборки.
+        till: NaiveDate,
+    },
+}
+
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
 /// Ошибки построения [`HistoryRecord`].
 pub enum ParseHistoryRecordError {
     /// Некорректный `boardid`.
@@ -1751,6 +1764,8 @@ pub struct HistoryRecord {
     high: Option<f64>,
     close: Option<f64>,
     volume: Option<u64>,
+    duration_days: Option<f64>,
+    yield_percent: Option<f64>,
 }
 
 impl HistoryRecord {
@@ -1767,6 +1782,8 @@ impl HistoryRecord {
             high,
             close,
             volume,
+            duration_days,
+            yield_percent,
         } = input;
 
         let boardid = BoardId::try_from(boardid)?;
@@ -1795,6 +1812,8 @@ impl HistoryRecord {
             high,
             close,
             volume,
+            duration_days,
+            yield_percent,
         })
     }
 
@@ -1846,6 +1865,62 @@ impl HistoryRecord {
     /// Объём торгов (`volume`).
     pub fn volume(&self) -> Option<u64> {
         self.volume
+    }
+
+    /// Дюрация в днях (`DURATION`), если поле присутствует в истории этого рынка.
+    ///
+    /// ISS использует для `DURATION` как целый, так и дробный wire-тип в зависимости
+    /// от рынка, поэтому доменная модель хранит значение как `f64`.
+    pub fn duration_days(&self) -> Option<f64> {
+        self.duration_days
+    }
+
+    /// Доходность в процентах (`YIELD`), если поле присутствует в истории этого рынка.
+    pub fn yield_percent(&self) -> Option<f64> {
+        self.yield_percent
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+/// Строгие параметры запроса истории ISS с инвариантом `from <= till`.
+pub struct HistoryQuery {
+    from: Option<NaiveDate>,
+    till: Option<NaiveDate>,
+}
+
+impl HistoryQuery {
+    /// Построить запрос истории с проверкой инварианта `from <= till`.
+    pub fn try_new(
+        from: Option<NaiveDate>,
+        till: Option<NaiveDate>,
+    ) -> Result<Self, ParseHistoryQueryError> {
+        if let (Some(from), Some(till)) = (from, till)
+            && from > till
+        {
+            return Err(ParseHistoryQueryError::InvalidDateRange { from, till });
+        }
+
+        Ok(Self { from, till })
+    }
+
+    /// Дата начала выборки (`from`).
+    pub fn from(&self) -> Option<NaiveDate> {
+        self.from
+    }
+
+    /// Дата окончания выборки (`till`).
+    pub fn till(&self) -> Option<NaiveDate> {
+        self.till
+    }
+
+    /// Вернуть копию запроса с новым `from`.
+    pub fn with_from(self, from: NaiveDate) -> Result<Self, ParseHistoryQueryError> {
+        Self::try_new(Some(from), self.till)
+    }
+
+    /// Вернуть копию запроса с новым `till`.
+    pub fn with_till(self, till: NaiveDate) -> Result<Self, ParseHistoryQueryError> {
+        Self::try_new(self.from, Some(till))
     }
 }
 
@@ -2246,6 +2321,8 @@ pub(crate) struct HistoryRecordInput {
     pub(crate) high: Option<f64>,
     pub(crate) close: Option<f64>,
     pub(crate) volume: Option<i64>,
+    pub(crate) duration_days: Option<f64>,
+    pub(crate) yield_percent: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

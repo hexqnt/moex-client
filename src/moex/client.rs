@@ -16,7 +16,7 @@ use crate::models::{
 #[cfg(feature = "news")]
 use crate::models::{Event, SiteNews};
 #[cfg(feature = "history")]
-use crate::models::{HistoryDates, HistoryRecord};
+use crate::models::{HistoryDates, HistoryQuery, HistoryRecord};
 
 use super::constants::*;
 use super::payload::{
@@ -415,15 +415,41 @@ impl BlockingMoexClient {
         security: &SecId,
         page_request: PageRequest,
     ) -> Result<Vec<HistoryRecord>, MoexError> {
+        self.history_query_filtered(
+            engine,
+            market,
+            board,
+            security,
+            HistoryQuery::default(),
+            page_request,
+        )
+    }
+
+    #[cfg(feature = "history")]
+    /// Получить отфильтрованные по датам исторические данные (`history`).
+    pub fn history_query_filtered(
+        &self,
+        engine: &EngineName,
+        market: &MarketName,
+        board: &BoardId,
+        security: &SecId,
+        query: HistoryQuery,
+        page_request: PageRequest,
+    ) -> Result<Vec<HistoryRecord>, MoexError> {
         match page_request {
-            PageRequest::FirstPage => {
-                self.fetch_history_page(engine, market, board, security, Pagination::default())
-            }
+            PageRequest::FirstPage => self.fetch_history_page(
+                engine,
+                market,
+                board,
+                security,
+                query,
+                Pagination::default(),
+            ),
             PageRequest::Page(pagination) => {
-                self.fetch_history_page(engine, market, board, security, pagination)
+                self.fetch_history_page(engine, market, board, security, query, pagination)
             }
             PageRequest::All { page_limit } => self
-                .history_pages(engine, market, board, security, page_limit)
+                .history_pages_filtered(engine, market, board, security, query, page_limit)
                 .all(),
         }
     }
@@ -438,12 +464,34 @@ impl BlockingMoexClient {
         security: &'a SecId,
         page_limit: NonZeroU32,
     ) -> HistoryPages<'a> {
+        self.history_pages_filtered(
+            engine,
+            market,
+            board,
+            security,
+            HistoryQuery::default(),
+            page_limit,
+        )
+    }
+
+    #[cfg(feature = "history")]
+    /// Создать ленивый пагинатор отфильтрованных по датам страниц `history`.
+    pub fn history_pages_filtered<'a>(
+        &'a self,
+        engine: &'a EngineName,
+        market: &'a MarketName,
+        board: &'a BoardId,
+        security: &'a SecId,
+        query: HistoryQuery,
+        page_limit: NonZeroU32,
+    ) -> HistoryPages<'a> {
         HistoryPages {
             client: self,
             engine,
             market,
             board,
             security,
+            query,
             pagination: PaginationTracker::new(
                 history_endpoint(engine, market, board, security),
                 page_limit,
@@ -1064,6 +1112,7 @@ impl BlockingMoexClient {
         market: &MarketName,
         board: &BoardId,
         security: &SecId,
+        history_query: HistoryQuery,
         pagination: Pagination,
     ) -> Result<Vec<HistoryRecord>, MoexError> {
         let endpoint = history_endpoint(engine, market, board, security);
@@ -1075,6 +1124,7 @@ impl BlockingMoexClient {
                 .append_pair(ISS_ONLY_PARAM, "history")
                 .append_pair(HISTORY_COLUMNS_PARAM, HISTORY_COLUMNS);
         }
+        append_history_query_to_url(&mut endpoint_url, history_query);
         append_pagination_to_url(&mut endpoint_url, pagination);
 
         let payload = self.fetch_payload(endpoint.as_str(), endpoint_url)?;
@@ -1680,17 +1730,46 @@ impl AsyncMoexClient {
         security: &SecId,
         page_request: PageRequest,
     ) -> Result<Vec<HistoryRecord>, MoexError> {
+        self.history_query_filtered(
+            engine,
+            market,
+            board,
+            security,
+            HistoryQuery::default(),
+            page_request,
+        )
+        .await
+    }
+
+    #[cfg(feature = "history")]
+    /// Получить отфильтрованные по датам исторические данные (`history`).
+    pub async fn history_query_filtered(
+        &self,
+        engine: &EngineName,
+        market: &MarketName,
+        board: &BoardId,
+        security: &SecId,
+        query: HistoryQuery,
+        page_request: PageRequest,
+    ) -> Result<Vec<HistoryRecord>, MoexError> {
         match page_request {
             PageRequest::FirstPage => {
-                self.fetch_history_page(engine, market, board, security, Pagination::default())
-                    .await
+                self.fetch_history_page(
+                    engine,
+                    market,
+                    board,
+                    security,
+                    query,
+                    Pagination::default(),
+                )
+                .await
             }
             PageRequest::Page(pagination) => {
-                self.fetch_history_page(engine, market, board, security, pagination)
+                self.fetch_history_page(engine, market, board, security, query, pagination)
                     .await
             }
             PageRequest::All { page_limit } => {
-                self.history_pages(engine, market, board, security, page_limit)
+                self.history_pages_filtered(engine, market, board, security, query, page_limit)
                     .all()
                     .await
             }
@@ -1707,12 +1786,34 @@ impl AsyncMoexClient {
         security: &'a SecId,
         page_limit: NonZeroU32,
     ) -> AsyncHistoryPages<'a> {
+        self.history_pages_filtered(
+            engine,
+            market,
+            board,
+            security,
+            HistoryQuery::default(),
+            page_limit,
+        )
+    }
+
+    #[cfg(feature = "history")]
+    /// Создать асинхронный пагинатор отфильтрованных по датам страниц `history`.
+    pub fn history_pages_filtered<'a>(
+        &'a self,
+        engine: &'a EngineName,
+        market: &'a MarketName,
+        board: &'a BoardId,
+        security: &'a SecId,
+        query: HistoryQuery,
+        page_limit: NonZeroU32,
+    ) -> AsyncHistoryPages<'a> {
         AsyncHistoryPages {
             client: self,
             engine,
             market,
             board,
             security,
+            query,
             pagination: PaginationTracker::new(
                 history_endpoint(engine, market, board, security),
                 page_limit,
@@ -2368,6 +2469,7 @@ impl AsyncMoexClient {
         market: &MarketName,
         board: &BoardId,
         security: &SecId,
+        history_query: HistoryQuery,
         pagination: Pagination,
     ) -> Result<Vec<HistoryRecord>, MoexError> {
         let endpoint = history_endpoint(engine, market, board, security);
@@ -2379,6 +2481,7 @@ impl AsyncMoexClient {
                 .append_pair(ISS_ONLY_PARAM, "history")
                 .append_pair(HISTORY_COLUMNS_PARAM, HISTORY_COLUMNS);
         }
+        append_history_query_to_url(&mut endpoint_url, history_query);
         append_pagination_to_url(&mut endpoint_url, pagination);
 
         let payload = self.fetch_payload(endpoint.as_str(), endpoint_url).await?;
@@ -3218,6 +3321,7 @@ pub struct AsyncHistoryPages<'a> {
     market: &'a MarketName,
     board: &'a BoardId,
     security: &'a SecId,
+    query: HistoryQuery,
     pagination: PaginationTracker<chrono::NaiveDate>,
 }
 
@@ -3233,6 +3337,7 @@ impl<'a> AsyncHistoryPages<'a> {
                     self.market,
                     self.board,
                     self.security,
+                    self.query,
                     pagination,
                 )
             },
@@ -3621,6 +3726,7 @@ pub struct HistoryPages<'a> {
     market: &'a MarketName,
     board: &'a BoardId,
     security: &'a SecId,
+    query: HistoryQuery,
     pagination: PaginationTracker<chrono::NaiveDate>,
 }
 
@@ -3636,6 +3742,7 @@ impl<'a> HistoryPages<'a> {
                     self.market,
                     self.board,
                     self.security,
+                    self.query,
                     pagination,
                 )
             },
@@ -4105,6 +4212,25 @@ impl<'a> AsyncOwnedSecurityScope<'a> {
     }
 
     #[cfg(feature = "history")]
+    /// Получить отфильтрованные по датам исторические данные по текущему инструменту.
+    pub async fn history_filtered(
+        &self,
+        query: HistoryQuery,
+        page_request: PageRequest,
+    ) -> Result<Vec<HistoryRecord>, MoexError> {
+        self.client
+            .history_query_filtered(
+                &self.engine,
+                &self.market,
+                &self.board,
+                &self.security,
+                query,
+                page_request,
+            )
+            .await
+    }
+
+    #[cfg(feature = "history")]
     /// Создать асинхронный ленивый пагинатор страниц `history` по текущему инструменту.
     pub fn history_pages(&self, page_limit: NonZeroU32) -> AsyncHistoryPages<'_> {
         self.client.history_pages(
@@ -4112,6 +4238,23 @@ impl<'a> AsyncOwnedSecurityScope<'a> {
             &self.market,
             &self.board,
             &self.security,
+            page_limit,
+        )
+    }
+
+    #[cfg(feature = "history")]
+    /// Создать пагинатор отфильтрованных страниц `history` по текущему инструменту.
+    pub fn history_pages_filtered(
+        &self,
+        query: HistoryQuery,
+        page_limit: NonZeroU32,
+    ) -> AsyncHistoryPages<'_> {
+        self.client.history_pages_filtered(
+            &self.engine,
+            &self.market,
+            &self.board,
+            &self.security,
+            query,
             page_limit,
         )
     }
@@ -4525,6 +4668,23 @@ impl<'a> OwnedSecurityScope<'a> {
     }
 
     #[cfg(feature = "history")]
+    /// Получить отфильтрованные по датам исторические данные по текущему инструменту.
+    pub fn history_filtered(
+        &self,
+        query: HistoryQuery,
+        page_request: PageRequest,
+    ) -> Result<Vec<HistoryRecord>, MoexError> {
+        self.client.history_query_filtered(
+            &self.engine,
+            &self.market,
+            &self.board,
+            &self.security,
+            query,
+            page_request,
+        )
+    }
+
+    #[cfg(feature = "history")]
     /// Создать ленивый пагинатор страниц `history` по текущему инструменту.
     pub fn history_pages(&self, page_limit: NonZeroU32) -> HistoryPages<'_> {
         self.client.history_pages(
@@ -4532,6 +4692,23 @@ impl<'a> OwnedSecurityScope<'a> {
             &self.market,
             &self.board,
             &self.security,
+            page_limit,
+        )
+    }
+
+    #[cfg(feature = "history")]
+    /// Создать пагинатор отфильтрованных страниц `history` по текущему инструменту.
+    pub fn history_pages_filtered(
+        &self,
+        query: HistoryQuery,
+        page_limit: NonZeroU32,
+    ) -> HistoryPages<'_> {
+        self.client.history_pages_filtered(
+            &self.engine,
+            &self.market,
+            &self.board,
+            &self.security,
+            query,
             page_limit,
         )
     }
@@ -4879,6 +5056,20 @@ pub(super) fn append_candle_query_to_url(endpoint_url: &mut Url, candle_query: C
     }
     if let Some(interval) = candle_query.interval() {
         query_pairs.append_pair(INTERVAL_PARAM, interval.as_str());
+    }
+}
+
+#[cfg(feature = "history")]
+/// Добавить параметры запроса истории (`from`, `till`) в URL.
+pub(super) fn append_history_query_to_url(endpoint_url: &mut Url, history_query: HistoryQuery) {
+    let mut query_pairs = endpoint_url.query_pairs_mut();
+    if let Some(from) = history_query.from() {
+        let from = from.format("%Y-%m-%d").to_string();
+        query_pairs.append_pair(FROM_PARAM, &from);
+    }
+    if let Some(till) = history_query.till() {
+        let till = till.format("%Y-%m-%d").to_string();
+        query_pairs.append_pair(TILL_PARAM, &till);
     }
 }
 
