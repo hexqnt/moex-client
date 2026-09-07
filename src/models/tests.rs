@@ -836,3 +836,98 @@ fn page_request_helpers_construct_expected_variants() {
         }
     );
 }
+
+fn analytics(secid: &str, weight: f64, date: &str, session: i64) -> IndexAnalytics {
+    IndexAnalytics::try_from(IndexAnalyticsRow(
+        "IMOEX".into(),
+        d(date),
+        secid.into(),
+        secid.into(),
+        secid.into(),
+        weight,
+        session,
+        d(date),
+    ))
+    .expect("valid analytics")
+}
+
+#[test]
+fn actual_session_prioritizes_date_then_session_and_preserves_order() {
+    let items = vec![
+        analytics("OLD", 1.0, "2026-03-05", 3),
+        analytics("FIRST", 1.0, "2026-03-06", 2),
+        analytics("EARLY", 1.0, "2026-03-06", 1),
+        analytics("SECOND", 1.0, "2026-03-06", 2),
+    ]
+    .into_actual_by_session();
+    let ids: Vec<_> = items.iter().map(|item| item.secid().as_str()).collect();
+    assert_eq!(ids, ["FIRST", "SECOND"]);
+}
+
+#[test]
+fn analytics_sort_breaks_equal_weight_ties_by_secid() {
+    let items = vec![
+        analytics("SBER", 0.0, "2026-03-06", 1),
+        analytics("VTBR", 10.0, "2026-03-06", 1),
+        analytics("GAZP", 0.0, "2026-03-06", 1),
+    ]
+    .into_sorted_by_weight_desc();
+    let ids: Vec<_> = items.iter().map(|item| item.secid().as_str()).collect();
+    assert_eq!(ids, ["VTBR", "GAZP", "SBER"]);
+}
+
+#[test]
+fn collection_selectors_accept_empty_collections() {
+    assert!(Vec::<Index>::new().into_actual_by_till().is_empty());
+    assert!(
+        Vec::<IndexAnalytics>::new()
+            .into_actual_by_session()
+            .into_sorted_by_weight_desc()
+            .is_empty()
+    );
+    let boards = Vec::<SecurityBoard>::new();
+    assert!(boards.stock_primary_or_first().is_none());
+    assert!(boards.into_stock_primary_or_first().is_none());
+}
+
+#[test]
+fn board_selectors_agree_on_primary_fallback_and_missing_stock() {
+    for (entries, expected) in [
+        (vec![("currency", "CETS", 1)], None),
+        (
+            vec![
+                ("currency", "CETS", 1),
+                ("stock", "TQTF", 0),
+                ("stock", "TQBR", 0),
+            ],
+            Some("TQTF"),
+        ),
+        (
+            vec![
+                ("stock", "TQTF", 0),
+                ("stock", "TQBR", 1),
+                ("stock", "TQTD", 1),
+            ],
+            Some("TQBR"),
+        ),
+    ] {
+        let boards: Vec<_> = entries
+            .into_iter()
+            .map(|(engine, board, primary)| {
+                SecurityBoard::try_new(engine.into(), "shares".into(), board.into(), primary)
+                    .expect("valid board")
+            })
+            .collect();
+        assert_eq!(
+            boards
+                .stock_primary_or_first()
+                .map(|board| board.boardid().as_str()),
+            expected
+        );
+        let selected = boards.into_stock_primary_or_first();
+        assert_eq!(
+            selected.as_ref().map(|board| board.boardid().as_str()),
+            expected
+        );
+    }
+}

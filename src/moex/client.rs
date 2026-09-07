@@ -1239,6 +1239,7 @@ impl BlockingMoexClient {
 
 /// Builder для конфигурации [`BlockingMoexClient`].
 #[cfg(feature = "blocking")]
+#[must_use]
 pub struct BlockingMoexClientBuilder {
     base_url: Option<Url>,
     metadata: bool,
@@ -2572,6 +2573,7 @@ impl AsyncMoexClient {
 
 /// Builder для конфигурации [`AsyncMoexClient`].
 #[cfg(feature = "async")]
+#[must_use]
 pub struct AsyncMoexClientBuilder {
     base_url: Option<Url>,
     metadata: bool,
@@ -2699,6 +2701,7 @@ struct AsyncRateLimitState {
 /// Нужен как низкоуровневый путь для endpoint-ов, которые пока не покрыты
 /// строгим типизированным API.
 #[cfg(feature = "blocking")]
+#[must_use]
 pub struct RawIssRequestBuilder<'a> {
     client: &'a BlockingMoexClient,
     path: Option<Box<str>>,
@@ -2845,6 +2848,7 @@ impl<'a> RawIssRequestBuilder<'a> {
 
 /// Асинхронный универсальный builder для произвольных ISS endpoint-ов.
 #[cfg(feature = "async")]
+#[must_use]
 pub struct AsyncRawIssRequestBuilder<'a> {
     client: &'a AsyncMoexClient,
     path: Option<Box<str>>,

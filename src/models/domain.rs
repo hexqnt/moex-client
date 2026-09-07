@@ -1332,6 +1332,7 @@ impl CandleBorder {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 /// Строгие параметры запроса свечей ISS с инвариантом `from <= till`.
+#[must_use]
 pub struct CandleQuery {
     from: Option<NaiveDateTime>,
     till: Option<NaiveDateTime>,
@@ -1392,6 +1393,7 @@ impl CandleQuery {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 /// Параметры пагинации ISS API (`start`, `limit`).
+#[must_use]
 pub struct Pagination {
     /// Смещение первой записи (`start`).
     pub start: Option<u32>,
@@ -1872,6 +1874,7 @@ impl HistoryRecord {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 /// Строгие параметры запроса истории ISS с инвариантом `from <= till`.
+#[must_use]
 pub struct HistoryQuery {
     from: Option<NaiveDate>,
     till: Option<NaiveDate>,

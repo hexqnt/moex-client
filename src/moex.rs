@@ -748,6 +748,7 @@ enum RepeatPagePolicy {
 
 /// Политика повторных попыток для операций с [`MoexError`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[must_use]
 pub struct RetryPolicy {
     max_attempts: NonZeroU32,
     delay: Duration,
@@ -783,7 +784,7 @@ impl RetryPolicy {
 
 impl Default for RetryPolicy {
     fn default() -> Self {
-        Self::new(NonZeroU32::new(3).expect("retry policy default attempts must be non-zero"))
+        Self::new(const { NonZeroU32::new(3).unwrap() })
     }
 }
 
@@ -791,6 +792,7 @@ impl Default for RetryPolicy {
 /// Ограничение частоты запросов.
 ///
 /// Хранит минимальный интервал между последовательными запросами.
+#[must_use]
 pub struct RateLimit {
     min_interval: Duration,
 }
@@ -857,6 +859,7 @@ impl RateLimiter {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 /// Системные опции ISS-запроса (`iss.*`) для raw endpoint-ов.
+#[must_use]
 pub struct IssRequestOptions {
     metadata: Option<IssToggle>,
     data: Option<IssToggle>,

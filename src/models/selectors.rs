@@ -1,6 +1,6 @@
 //! Утилиты fluent-интерфейса для отбора и сортировки доменных коллекций.
 
-use std::cmp::Ordering;
+use std::borrow::Borrow;
 
 use super::{Index, IndexAnalytics, SecurityBoard};
 
@@ -10,6 +10,7 @@ pub trait IndexesExt {
     fn retain_actual_by_till(&mut self);
 
     /// Вернуть коллекцию индексов только с максимальным `till`.
+    #[must_use]
     fn into_actual_by_till(mut self) -> Self
     where
         Self: Sized,
@@ -33,6 +34,7 @@ pub trait IndexAnalyticsExt {
     fn retain_actual_by_session(&mut self);
 
     /// Вернуть только актуальную торговую сессию.
+    #[must_use]
     fn into_actual_by_session(mut self) -> Self
     where
         Self: Sized,
@@ -45,6 +47,7 @@ pub trait IndexAnalyticsExt {
     fn sort_by_weight_desc(&mut self);
 
     /// Вернуть отсортированную по убыванию `weight` коллекцию.
+    #[must_use]
     fn into_sorted_by_weight_desc(mut self) -> Self
     where
         Self: Sized,
@@ -56,30 +59,18 @@ pub trait IndexAnalyticsExt {
 
 impl IndexAnalyticsExt for Vec<IndexAnalytics> {
     fn retain_actual_by_session(&mut self) {
-        // Сначала отбираем записи за последнюю дату торговой сессии.
-        let Some(latest_trade_session_date) =
-            self.iter().map(IndexAnalytics::trade_session_date).max()
-        else {
-            return;
-        };
-        self.retain(|item| item.trade_session_date() == latest_trade_session_date);
-
-        // После фильтра по дате оставляем максимальный номер сессии.
-        let Some(latest_tradingsession) = self.iter().map(IndexAnalytics::tradingsession).max()
-        else {
-            return;
-        };
-        self.retain(|item| item.tradingsession() == latest_tradingsession);
+        let session_key =
+            |item: &IndexAnalytics| (item.trade_session_date(), item.tradingsession());
+        if let Some(latest_session) = self.iter().map(session_key).max() {
+            self.retain(|item| session_key(item) == latest_session);
+        }
     }
 
     fn sort_by_weight_desc(&mut self) {
         self.sort_by(|left, right| {
             right
                 .weight()
-                // `weight` заранее валидируется как конечное число, но fallback
-                // защищает от нарушения инварианта в будущем.
-                .partial_cmp(&left.weight())
-                .unwrap_or(Ordering::Equal)
+                .total_cmp(&left.weight())
                 .then_with(|| left.secid().as_str().cmp(right.secid().as_str()))
         });
     }
@@ -98,34 +89,29 @@ pub trait SecurityBoardsExt {
 
 impl SecurityBoardsExt for Vec<SecurityBoard> {
     fn stock_primary_or_first(&self) -> Option<&SecurityBoard> {
-        let mut fallback = None;
-        for board in self {
-            if board.engine().as_str() != "stock" {
-                continue;
-            }
-            if board.is_primary() {
-                return Some(board);
-            }
-            if fallback.is_none() {
-                fallback = Some(board);
-            }
-        }
-        fallback
+        stock_primary_or_first(self.iter())
     }
 
     fn into_stock_primary_or_first(self) -> Option<SecurityBoard> {
-        let mut fallback = None;
-        for board in self {
-            if board.engine().as_str() != "stock" {
-                continue;
-            }
-            if board.is_primary() {
-                return Some(board);
-            }
-            if fallback.is_none() {
-                fallback = Some(board);
-            }
-        }
-        fallback
+        stock_primary_or_first(self)
     }
+}
+
+fn stock_primary_or_first<T: Borrow<SecurityBoard>>(
+    boards: impl IntoIterator<Item = T>,
+) -> Option<T> {
+    let mut fallback = None;
+    for board in boards {
+        let value = board.borrow();
+        if value.engine().as_str() != "stock" {
+            continue;
+        }
+        if value.is_primary() {
+            return Some(board);
+        }
+        if fallback.is_none() {
+            fallback = Some(board);
+        }
+    }
+    fallback
 }
