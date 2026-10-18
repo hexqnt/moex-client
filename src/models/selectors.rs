@@ -2,6 +2,8 @@
 
 use std::borrow::Borrow;
 
+use chrono::NaiveDate;
+
 use super::{Index, IndexAnalytics, SecurityBoard};
 
 /// Методы fluent-интерфейса для коллекции индексов.
@@ -22,7 +24,7 @@ pub trait IndexesExt {
 
 impl IndexesExt for Vec<Index> {
     fn retain_actual_by_till(&mut self) {
-        let latest_till = self.iter().filter_map(Index::till).max();
+        let latest_till = latest_till(self);
         self.retain(|index| index.till() == latest_till);
     }
 }
@@ -95,6 +97,18 @@ impl SecurityBoardsExt for Vec<SecurityBoard> {
     fn into_stock_primary_or_first(self) -> Option<SecurityBoard> {
         stock_primary_or_first(self)
     }
+}
+
+/// Итератор по «актуальным» индексам: с максимальной датой `till`.
+pub fn actual_indexes(indexes: &[Index]) -> impl Iterator<Item = &Index> {
+    let latest_till = latest_till(indexes);
+    indexes
+        .iter()
+        .filter(move |index| index.till() == latest_till)
+}
+
+fn latest_till(indexes: &[Index]) -> Option<NaiveDate> {
+    indexes.iter().filter_map(Index::till).max()
 }
 
 fn stock_primary_or_first<T: Borrow<SecurityBoard>>(

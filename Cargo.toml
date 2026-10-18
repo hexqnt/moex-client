@@ -7,7 +7,6 @@ description = "Strictly-typed, unofficial Rust client for Moscow Exchange ISS AP
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/hexqnt/moex-client"
-homepage = "https://github.com/hexqnt/moex-client"
 documentation = "https://docs.rs/moex-client"
 keywords = ["moex", "iss", "api-client", "exchange", "finance"]
 categories = ["api-bindings", "web-programming::http-client"]
@@ -15,9 +14,11 @@ include = [
     "src/**",
     "Cargo.toml",
     "README.md",
+    "README.ru.md",
     "LICENSE*",
     "examples/**",
     "tests/**",
+    "benches/**",
 ]
 
 [profile.dev]
@@ -45,7 +46,6 @@ native-tls = ["transport", "reqwest/default-tls"]
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 reqwest = { version = "0.13", optional = true, default-features = false, features = [
     "gzip",
-    "json",
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -54,3 +54,8 @@ thiserror = "2.0"
 [[example]]
 name = "actual_indexes_dump"
 required-features = ["blocking"]
+
+[[bench]]
+name = "architecture"
+harness = false
+required-features = ["blocking", "history", "news"]

@@ -1,5 +1,17 @@
 //! Типизированный Rust-клиент для работы с ISS API Московской биржи.
 
+/// Асинхронный API транспортного слоя.
+#[cfg(feature = "async")]
+pub mod r#async;
+/// Блокирующий API транспортного слоя.
+#[cfg(feature = "blocking")]
+pub mod blocking;
+/// Доменные типы и парсинг ответов ISS в строгие модели.
+pub mod models;
+mod moex;
+/// Удобный импорт extension-traits для fluent-цепочек над коллекциями.
+pub mod prelude;
+
 /// Транспортно-независимый API декодирования ISS JSON payload-ов.
 ///
 /// Реэкспортируется из внутреннего модуля `moex::decode` и доступен как
@@ -13,15 +25,3 @@ pub use moex::{
 };
 #[cfg(feature = "async")]
 pub use moex::{with_rate_limit_async, with_retry_async};
-
-/// Асинхронный API транспортного слоя.
-#[cfg(feature = "async")]
-pub mod r#async;
-/// Блокирующий API транспортного слоя.
-#[cfg(feature = "blocking")]
-pub mod blocking;
-/// Доменные типы и парсинг ответов ISS в строгие модели.
-pub mod models;
-mod moex;
-/// Удобный импорт extension-traits для fluent-цепочек над коллекциями.
-pub mod prelude;

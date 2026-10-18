@@ -6,126 +6,72 @@
 use std::borrow::Cow;
 
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use super::domain::{
     Board, Candle, CandleBorder, CandleOhlcv, Engine, Event, HistoryDates, HistoryRecord,
     HistoryRecordInput, Index, IndexAnalytics, IndexAnalyticsInput, Market, OrderbookLevel,
+    SecStat, SecStatInput, Security, SiteNews, Trade, Turnover,
+};
+use super::errors::{
     ParseBoardError, ParseCandleBorderError, ParseCandleError, ParseEngineError, ParseEventError,
     ParseHistoryDatesError, ParseHistoryRecordError, ParseIndexAnalyticsError, ParseIndexError,
     ParseMarketError, ParseOrderbookError, ParseSecStatError, ParseSecurityError,
-    ParseSiteNewsError, ParseTradeError, ParseTurnoverError, SecStat, SecStatInput, Security,
-    SiteNews, Trade, Turnover,
+    ParseSiteNewsError, ParseTradeError, ParseTurnoverError,
 };
 
-mod optional_date {
-    use serde::{Deserialize, Deserializer};
+// Заимствуем неэкранированный JSON-текст; для escape-последовательностей и owned-ввода serde сохраняет владение.
+#[derive(Deserialize)]
+#[serde(transparent)]
+struct IssText<'a>(#[serde(borrow)] Cow<'a, str>);
 
-    use super::*;
+macro_rules! temporal_serde {
+    ($module:ident, $value:ty, $format:literal) => {
+        mod $module {
+            use super::*;
 
-    /// Десериализация опциональной даты ISS.
-    /// `null` и пустая строка трактуются как отсутствие значения.
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<NaiveDate>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let raw = Option::<Cow<'de, str>>::deserialize(deserializer)?;
-        match raw {
-            None => Ok(None),
-            Some(raw) => {
-                let raw = raw.trim();
-                if raw.is_empty() {
-                    Ok(None)
-                } else {
-                    NaiveDate::parse_from_str(raw, "%Y-%m-%d")
-                        .map(Some)
-                        .map_err(serde::de::Error::custom)
+            pub fn deserialize<'de, D>(deserializer: D) -> Result<$value, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                let raw = IssText::deserialize(deserializer)?.0;
+                <$value>::parse_from_str(raw.trim(), $format).map_err(serde::de::Error::custom)
+            }
+        }
+    };
+    (optional $module:ident, $value:ty, $format:literal) => {
+        mod $module {
+            use super::*;
+
+            pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<$value>, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                let raw = Option::<IssText<'de>>::deserialize(deserializer)?;
+                match raw {
+                    None => Ok(None),
+                    Some(raw) => {
+                        let raw = raw.0.trim();
+                        if raw.is_empty() {
+                            Ok(None)
+                        } else {
+                            <$value>::parse_from_str(raw, $format)
+                                .map(Some)
+                                .map_err(serde::de::Error::custom)
+                        }
+                    }
                 }
             }
         }
-    }
+    };
 }
 
-mod datetime_serde {
-    use serde::{Deserialize, Deserializer};
+temporal_serde!(optional optional_date, NaiveDate, "%Y-%m-%d");
+temporal_serde!(datetime_serde, NaiveDateTime, "%Y-%m-%d %H:%M:%S");
+temporal_serde!(optional optional_datetime_serde, NaiveDateTime, "%Y-%m-%d %H:%M:%S");
+temporal_serde!(date_serde, NaiveDate, "%Y-%m-%d");
+temporal_serde!(time_serde, NaiveTime, "%H:%M:%S");
 
-    use super::*;
-
-    const DATETIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
-
-    /// Десериализация даты и времени в формате ISS `%Y-%m-%d %H:%M:%S`.
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<NaiveDateTime, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let raw = Cow::<str>::deserialize(deserializer)?;
-        NaiveDateTime::parse_from_str(raw.trim(), DATETIME_FORMAT).map_err(serde::de::Error::custom)
-    }
-}
-
-mod optional_datetime_serde {
-    use serde::{Deserialize, Deserializer};
-
-    use super::*;
-
-    const DATETIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
-
-    /// Десериализация опционального ISS datetime.
-    /// `null` и пустая строка трактуются как отсутствие значения.
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<NaiveDateTime>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let raw = Option::<Cow<'de, str>>::deserialize(deserializer)?;
-        match raw {
-            None => Ok(None),
-            Some(raw) => {
-                let raw = raw.trim();
-                if raw.is_empty() {
-                    Ok(None)
-                } else {
-                    NaiveDateTime::parse_from_str(raw, DATETIME_FORMAT)
-                        .map(Some)
-                        .map_err(serde::de::Error::custom)
-                }
-            }
-        }
-    }
-}
-
-mod date_serde {
-    use serde::{Deserialize, Deserializer};
-
-    use super::*;
-
-    const DATE_FORMAT: &str = "%Y-%m-%d";
-
-    /// Десериализация даты ISS в формате `%Y-%m-%d`.
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<NaiveDate, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let raw = Cow::<str>::deserialize(deserializer)?;
-        NaiveDate::parse_from_str(raw.trim(), DATE_FORMAT).map_err(serde::de::Error::custom)
-    }
-}
-
-mod time_serde {
-    use serde::{Deserialize, Deserializer};
-
-    use super::*;
-
-    const TIME_FORMAT: &str = "%H:%M:%S";
-
-    /// Десериализация времени ISS в формате `%H:%M:%S`.
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<NaiveTime, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let raw = Cow::<str>::deserialize(deserializer)?;
-        NaiveTime::parse_from_str(raw.trim(), TIME_FORMAT).map_err(serde::de::Error::custom)
-    }
-}
 #[derive(Debug, Deserialize)]
 /// Строка таблицы `indices`: `indexid, shortname, from, till`.
 pub(crate) struct IndexRow(

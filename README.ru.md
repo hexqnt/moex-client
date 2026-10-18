@@ -230,6 +230,7 @@ use std::num::NonZeroU32;
 use moex_client::blocking::Client;
 use moex_client::models::{BoardId, EngineName, MarketName, PageRequest, SecId};
 
+#[cfg(feature = "history")]
 fn demo_scoped(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
     let engine = EngineName::try_from("stock")?;
     let market = MarketName::try_from("shares")?;

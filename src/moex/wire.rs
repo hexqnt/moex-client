@@ -20,103 +20,39 @@ pub(super) struct IssTable<T> {
     pub(super) data: Vec<T>,
 }
 
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `indices`.
-pub(super) struct IndexesResponse {
-    pub(super) indices: IssTable<IndexRow>,
+// Сохраняем отдельные derive-типы: serde диагностирует отсутствующие и повторные блоки.
+macro_rules! table_responses {
+    ($($(#[$attr:meta])* $name:ident: $table:ident => $row:ty;)*) => {
+        $(
+            $(#[$attr])*
+            #[derive(Debug, Deserialize)]
+            pub(super) struct $name {
+                pub(super) $table: IssTable<$row>,
+            }
+        )*
+    };
 }
 
-#[cfg(feature = "history")]
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `history/.../dates`.
-pub(super) struct HistoryDatesResponse {
-    pub(super) dates: IssTable<HistoryDatesRow>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `turnovers`.
-pub(super) struct TurnoversResponse {
-    pub(super) turnovers: IssTable<TurnoverRow>,
-}
-
-#[cfg(feature = "news")]
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `sitenews`.
-pub(super) struct SiteNewsResponse {
-    pub(super) sitenews: IssTable<SiteNewsRow>,
-}
-
-#[cfg(feature = "news")]
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `events`.
-pub(super) struct EventsResponse {
-    pub(super) events: IssTable<EventRow>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `secstats`.
-pub(super) struct SecStatsResponse {
-    pub(super) secstats: IssTable<SecStatRow>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `index_analytics`.
-pub(super) struct IndexAnalyticsResponse {
-    pub(super) analytics: IssTable<IndexAnalyticsRow>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `engines`.
-pub(super) struct EnginesResponse {
-    pub(super) engines: IssTable<EngineRow>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `markets`.
-pub(super) struct MarketsResponse {
-    pub(super) markets: IssTable<MarketRow>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `boards`.
-pub(super) struct BoardsResponse {
-    pub(super) boards: IssTable<BoardRow>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `securities`.
-pub(super) struct SecuritiesResponse {
-    pub(super) securities: IssTable<SecurityRow>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `orderbook`.
-pub(super) struct OrderbookResponse {
-    pub(super) orderbook: IssTable<OrderbookLevelRow>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `candleborders`.
-pub(super) struct CandleBordersResponse {
-    pub(super) borders: IssTable<CandleBorderRow>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `candles`.
-pub(super) struct CandlesResponse {
-    pub(super) candles: IssTable<CandleRow>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `trades`.
-pub(super) struct TradesResponse {
-    pub(super) trades: IssTable<TradeRow>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Ответ endpoint `securities/{secid}` для таблицы `boards`.
-pub(super) struct SecurityBoardsResponse {
-    pub(super) boards: IssTable<SecurityBoardRow>,
+table_responses! {
+    IndexesResponse: indices => IndexRow;
+    #[cfg(feature = "history")]
+    HistoryDatesResponse: dates => HistoryDatesRow;
+    TurnoversResponse: turnovers => TurnoverRow;
+    #[cfg(feature = "news")]
+    SiteNewsResponse: sitenews => SiteNewsRow;
+    #[cfg(feature = "news")]
+    EventsResponse: events => EventRow;
+    SecStatsResponse: secstats => SecStatRow;
+    IndexAnalyticsResponse: analytics => IndexAnalyticsRow;
+    EnginesResponse: engines => EngineRow;
+    MarketsResponse: markets => MarketRow;
+    BoardsResponse: boards => BoardRow;
+    SecuritiesResponse: securities => SecurityRow;
+    OrderbookResponse: orderbook => OrderbookLevelRow;
+    CandleBordersResponse: borders => CandleBorderRow;
+    CandlesResponse: candles => CandleRow;
+    TradesResponse: trades => TradeRow;
+    SecurityBoardsResponse: boards => SecurityBoardRow;
 }
 
 #[derive(Debug, Deserialize)]

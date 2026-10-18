@@ -818,6 +818,267 @@ fn identifiers_support_parse_and_try_from_str() {
 }
 
 #[test]
+fn path_identifiers_share_owned_and_borrowed_invariants() {
+    fn check<T, E>(empty: E, slash: E)
+    where
+        T: for<'a> TryFrom<&'a str, Error = E> + TryFrom<String, Error = E> + AsRef<str>,
+        E: std::fmt::Debug + PartialEq,
+    {
+        for (raw, expected) in [
+            ("SBER", "SBER"),
+            ("\u{2003} SBER \u{a0}", "SBER"),
+            ("A B", "A B"),
+        ] {
+            let borrowed =
+                T::try_from(raw).unwrap_or_else(|err| panic!("invalid identifier: {err:?}"));
+            let owned = T::try_from(raw.to_owned())
+                .unwrap_or_else(|err| panic!("invalid identifier: {err:?}"));
+            assert_eq!(borrowed.as_ref(), expected);
+            assert_eq!(owned.as_ref(), expected);
+        }
+        for (raw, expected) in [
+            ("", &empty),
+            ("\u{2003} ", &empty),
+            (" / ", &slash),
+            ("A/B", &slash),
+        ] {
+            assert_eq!(T::try_from(raw).err().as_ref(), Some(expected));
+            assert_eq!(T::try_from(raw.to_owned()).err().as_ref(), Some(expected));
+        }
+    }
+
+    check::<EngineName, _>(
+        ParseEngineNameError::Empty,
+        ParseEngineNameError::ContainsSlash,
+    );
+    check::<MarketName, _>(
+        ParseMarketNameError::Empty,
+        ParseMarketNameError::ContainsSlash,
+    );
+    check::<BoardId, _>(ParseBoardIdError::Empty, ParseBoardIdError::ContainsSlash);
+    check::<SecId, _>(ParseSecIdError::Empty, ParseSecIdError::ContainsSlash);
+}
+
+#[test]
+fn index_identifier_retains_its_distinct_slash_and_debug_contract() {
+    let borrowed = IndexId::try_from("\u{2003} A/B ").expect("index id permits slashes");
+    let owned = IndexId::try_from("\u{2003} A/B ".to_owned()).expect("index id permits slashes");
+    assert_eq!(borrowed, owned);
+    assert_eq!(borrowed.as_str(), "A/B");
+    assert_eq!(borrowed.to_string(), "A/B");
+    assert_eq!(format!("{borrowed:?}"), "IndexId(\"A/B\")");
+    assert_eq!(
+        IndexId::try_from("\u{2003} "),
+        Err(ParseIndexError::EmptyIndexId)
+    );
+    assert_eq!(
+        IndexId::try_from(" ".to_owned()),
+        Err(ParseIndexError::EmptyIndexId)
+    );
+}
+
+#[test]
+fn owned_identifier_reuses_untrimmed_string_storage() {
+    let raw = "SBER".to_owned();
+    let pointer = raw.as_ptr();
+    let identifier = SecId::try_from(raw).expect("valid identifier");
+    assert_eq!(identifier.as_str().as_ptr(), pointer);
+    assert_eq!(format!("{identifier:?}"), "SecId(\"SBER\")");
+}
+
+#[test]
+fn optional_counters_preserve_none_zero_and_largest_wire_integer() {
+    let begin = dt("2026-03-06 10:00:00");
+    for raw in [None, Some(0), Some(i64::MAX)] {
+        let candle = Candle::try_new(
+            begin,
+            begin,
+            CandleOhlcv::new(None, None, None, None, None, raw),
+        )
+        .expect("valid candle volume");
+        let trade =
+            Trade::try_new(1, t("10:00:00"), None, raw, None).expect("valid trade quantity");
+        assert_eq!(candle.volume(), raw.map(|value| value as u64));
+        assert_eq!(trade.quantity(), candle.volume());
+    }
+    assert!(matches!(
+        Trade::try_new(1, t("10:00:00"), None, Some(i64::MIN), None),
+        Err(ParseTradeError::NegativeQuantity(i64::MIN))
+    ));
+}
+
+#[test]
+fn optional_wire_dates_preserve_null_empty_trim_and_parse_errors() {
+    for raw in [
+        serde_json::Value::Null,
+        serde_json::json!(""),
+        serde_json::json!("\u{2003} "),
+    ] {
+        let row: IndexRow = serde_json::from_value(serde_json::json!(["IMOEX", "Index", raw, raw]))
+            .expect("empty optional dates");
+        let index = Index::try_from(row).expect("valid index");
+        assert_eq!(index.from(), None);
+        assert_eq!(index.till(), None);
+    }
+    let row: IndexRow =
+        serde_json::from_str(r#"["IMOEX","Index"," 2026-03-06 ",null]"#).expect("trimmed date");
+    assert_eq!(row.2, Some(d("2026-03-06")));
+    assert!(serde_json::from_str::<IndexRow>(r#"["IMOEX","Index","2026-02-30",null]"#).is_err());
+}
+
+#[test]
+fn mandatory_wire_temporal_fields_reject_null_empty_and_invalid_values() {
+    for raw in [
+        serde_json::Value::Null,
+        serde_json::json!(""),
+        serde_json::json!("invalid"),
+    ] {
+        assert!(
+            serde_json::from_value::<IndexAnalyticsRow>(serde_json::json!([
+                "IMOEX",
+                raw,
+                "SBER",
+                "Sber",
+                "SBER",
+                1.0,
+                1,
+                "2026-03-06"
+            ]))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<CandleRow>(serde_json::json!([
+                raw,
+                "2026-03-06 10:00:00",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            ]))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<TradeRow>(serde_json::json!([1, raw, null, null, null]))
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn wire_temporal_fields_accept_escaped_and_owned_text() {
+    fn from_json_and_value<T: serde::de::DeserializeOwned>(payload: &str) -> [T; 2] {
+        [
+            serde_json::from_str(payload).expect("valid escaped temporal text"),
+            serde_json::from_value(serde_json::from_str(payload).expect("valid JSON value"))
+                .expect("valid owned temporal text"),
+        ]
+    }
+
+    for row in
+        from_json_and_value::<IndexRow>(r#"["IMOEX","Index","\u20032026-03-06\u00a0","\u0020"]"#)
+    {
+        assert_eq!(row.2, Some(d("2026-03-06")));
+        assert_eq!(row.3, None);
+    }
+    for row in from_json_and_value::<IndexAnalyticsRow>(
+        r#"["IMOEX","2026-\u00303-06","SBER","Sber","SBER",1,1,"2026-03-\u00306"]"#,
+    ) {
+        assert_eq!(row.1, d("2026-03-06"));
+        assert_eq!(row.7, d("2026-03-06"));
+    }
+    for row in from_json_and_value::<CandleRow>(
+        r#"["2026-03-06\u002010:00:00","2026-03-06 10:00:00",null,null,null,null,null,null]"#,
+    ) {
+        assert_eq!(row.0, dt("2026-03-06 10:00:00"));
+        assert_eq!(row.1, row.0);
+    }
+    for row in from_json_and_value::<TradeRow>(r#"[1,"10\u003a00:00",null,null,null]"#) {
+        assert_eq!(row.1, t("10:00:00"));
+    }
+    #[cfg(feature = "news")]
+    for row in from_json_and_value::<EventRow>(
+        r#"[1,"site","Event","2026-03-06\u002010:00:00","2026-03-06\u002010:00:00"]"#,
+    ) {
+        assert_eq!(row.3, Some(dt("2026-03-06 10:00:00")));
+        assert_eq!(row.3, Some(row.4));
+    }
+    assert!(
+        serde_json::from_str::<IndexRow>(r#"["IMOEX","Index","2026-02-\u0033\u0030",null]"#)
+            .is_err()
+    );
+}
+
+#[cfg(feature = "news")]
+#[test]
+fn optional_wire_datetime_preserves_empty_trim_and_parse_errors() {
+    for raw in [
+        serde_json::Value::Null,
+        serde_json::json!(""),
+        serde_json::json!("\u{2003} "),
+    ] {
+        let row: EventRow = serde_json::from_value(serde_json::json!([
+            1,
+            "site",
+            "Event",
+            raw,
+            "2026-03-06 10:00:00"
+        ]))
+        .expect("empty optional datetime");
+        assert_eq!(row.3, None);
+    }
+    let row: EventRow =
+        serde_json::from_str(r#"[1,"site","Event"," 2026-03-06 10:00:00 ","2026-03-06 10:00:00"]"#)
+            .expect("trimmed datetime");
+    assert_eq!(row.3, Some(dt("2026-03-06 10:00:00")));
+    assert!(
+        serde_json::from_str::<EventRow>(
+            r#"[1,"site","Event","2026-02-30 10:00:00","2026-03-06 10:00:00"]"#
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn actual_index_selectors_agree_for_missing_and_present_till() {
+    for (tills, expected) in [
+        (vec![None, None], vec!["0", "1"]),
+        (vec![None, Some(d("2026-03-06")), None], vec!["1"]),
+        (
+            vec![
+                Some(d("2026-03-05")),
+                Some(d("2026-03-06")),
+                Some(d("2026-03-06")),
+            ],
+            vec!["1", "2"],
+        ),
+    ] {
+        let mut indexes: Vec<_> = tills
+            .into_iter()
+            .enumerate()
+            .map(|(id, till)| {
+                Index::try_new(id.to_string(), "Index".to_owned(), None, till).expect("valid index")
+            })
+            .collect();
+        assert_eq!(
+            actual_indexes(&indexes)
+                .map(|index| index.id().as_str())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        indexes.retain_actual_by_till();
+        assert_eq!(
+            indexes
+                .iter()
+                .map(|index| index.id().as_str())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+}
+
+#[test]
 fn page_request_helpers_construct_expected_variants() {
     let first = PageRequest::first_page();
     assert_eq!(first, PageRequest::FirstPage);
