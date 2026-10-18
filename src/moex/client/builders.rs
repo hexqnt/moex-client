@@ -66,6 +66,14 @@ macro_rules! builder_settings {
             self.http_client = self.http_client.no_proxy();
             self
         }
+
+        /// Включить ограничение частоты запросов на уровне клиента.
+        ///
+        /// Лимит применяется ко всем endpoint-методам и raw-запросам этого экземпляра клиента.
+        pub fn rate_limit(mut self, rate_limit: RateLimit) -> Self {
+            self.rate_limit = Some(rate_limit);
+            self
+        }
     };
 }
 
@@ -83,14 +91,6 @@ pub struct BlockingMoexClientBuilder {
 #[cfg(feature = "blocking")]
 impl BlockingMoexClientBuilder {
     builder_settings!(Client);
-
-    /// Включить ограничение частоты запросов на уровне клиента.
-    ///
-    /// Лимит применяется ко всем endpoint-методам и raw-запросам этого экземпляра клиента.
-    pub fn rate_limit(mut self, rate_limit: RateLimit) -> Self {
-        self.rate_limit = Some(rate_limit);
-        self
-    }
 
     /// Построить блокирующий клиент ISS.
     pub fn build(self) -> Result<BlockingMoexClient, MoexError> {
@@ -125,17 +125,9 @@ pub struct AsyncMoexClientBuilder {
 impl AsyncMoexClientBuilder {
     builder_settings!(reqwest::Client);
 
-    /// Включить ограничение частоты запросов на уровне клиента.
-    ///
-    /// Для применения задержек нужно дополнительно передать `sleep` через
-    /// [`Self::rate_limit_sleep`].
-    pub fn rate_limit(mut self, rate_limit: RateLimit) -> Self {
-        self.rate_limit = Some(rate_limit);
-        self
-    }
-
     /// Задать async-функцию ожидания для использования с [`Self::rate_limit`].
     ///
+    /// Обязательна при включённом ограничении частоты запросов.
     /// Обычно это функция runtime-а, например `tokio::time::sleep`.
     pub fn rate_limit_sleep<F, Fut>(mut self, sleep: F) -> Self
     where

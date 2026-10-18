@@ -5,18 +5,17 @@ mod raw;
 use std::collections::HashMap;
 
 use crate::models::{
-    Board, Candle, CandleBorder, Engine, Index, IndexAnalytics, Market, OrderbookLevel,
-    ParseSecuritySnapshotError, SecId, SecStat, Security, SecurityBoard, SecuritySnapshot, Trade,
-    Turnover,
+    Board, BoardRow, Candle, CandleBorder, CandleBorderRow, CandleRow, Engine, EngineRow, Index,
+    IndexAnalytics, IndexAnalyticsRow, IndexRow, Market, MarketRow, OrderbookLevel,
+    OrderbookLevelRow, ParseSecuritySnapshotError, SecId, SecStat, SecStatRow, Security,
+    SecurityBoard, SecurityRow, SecuritySnapshot, Trade, TradeRow, Turnover, TurnoverRow,
 };
 #[cfg(feature = "news")]
-use crate::models::{Event, SiteNews};
+use crate::models::{Event, EventRow, SiteNews, SiteNewsRow};
 #[cfg(feature = "history")]
-use crate::models::{HistoryDates, HistoryRecord};
+use crate::models::{HistoryDates, HistoryDatesRow, HistoryRecord};
 
 use super::MoexError;
-use super::constants::*;
-use super::convert::*;
 use super::wire::*;
 
 pub use raw::{RawTableView, RawTables};
@@ -35,46 +34,59 @@ fn parse_json<'de, T: serde::Deserialize<'de>>(
     })
 }
 
+#[inline]
+fn convert_rows<Wire, Model: TryFrom<Wire>>(
+    rows: Vec<Wire>,
+    invalid_row: impl Fn(usize, Model::Error) -> MoexError,
+) -> Result<Vec<Model>, MoexError> {
+    rows.into_iter()
+        .enumerate()
+        .map(|(row, wire)| Model::try_from(wire).map_err(|source| invalid_row(row, source)))
+        .collect()
+}
+
 macro_rules! table_decoders {
-    ($($(#[$attr:meta])* $name:ident: $model:ty, $response:ident.$table:ident, $convert:ident;)*) => {
+    ($($(#[$attr:meta])* $name:ident: $response:ident.$table:ident, $wire:ty => $model:ty, $error:ident;)*) => {
         $(
             $(#[$attr])*
             pub(super) fn $name(payload: &str, endpoint: &str) -> Result<Vec<$model>, MoexError> {
+                // Derive сохраняет диагностику отсутствующих и повторных блоков serde.
+                #[derive(serde::Deserialize)]
+                struct $response {
+                    $table: IssTable<$wire>,
+                }
+
                 let payload: $response = parse_json(payload, endpoint)?;
-                $convert(payload.$table.data, endpoint)
+                convert_rows(payload.$table.data, |row, source| MoexError::$error {
+                    endpoint: endpoint.into(),
+                    row,
+                    source,
+                })
             }
         )*
     };
 }
 
 table_decoders! {
-    decode_markets_json_with_endpoint: Market, MarketsResponse.markets, convert_market_rows;
-    decode_boards_json_with_endpoint: Board, BoardsResponse.boards, convert_board_rows;
-    decode_security_boards_json_with_endpoint: SecurityBoard, SecurityBoardsResponse.boards, convert_security_board_rows;
-    decode_securities_json_with_endpoint: Security, SecuritiesResponse.securities, convert_security_rows;
-    decode_orderbook_json_with_endpoint: OrderbookLevel, OrderbookResponse.orderbook, convert_orderbook_rows;
-    decode_candle_borders_json_with_endpoint: CandleBorder, CandleBordersResponse.borders, convert_candle_border_rows;
-    decode_candles_json_with_endpoint: Candle, CandlesResponse.candles, convert_candle_rows;
-    decode_trades_json_with_endpoint: Trade, TradesResponse.trades, convert_trade_rows;
-    decode_index_analytics_json_with_endpoint: IndexAnalytics, IndexAnalyticsResponse.analytics, convert_index_analytics_rows;
+    decode_indexes_json_with_endpoint: IndexesResponse.indices, IndexRow => Index, InvalidIndex;
+    decode_engines_json_with_endpoint: EnginesResponse.engines, EngineRow => Engine, InvalidEngine;
+    decode_markets_json_with_endpoint: MarketsResponse.markets, MarketRow => Market, InvalidMarket;
+    decode_boards_json_with_endpoint: BoardsResponse.boards, BoardRow => Board, InvalidBoard;
+    decode_security_boards_json_with_endpoint: SecurityBoardsResponse.boards, SecurityBoardRow => SecurityBoard, InvalidSecurityBoard;
+    decode_securities_json_with_endpoint: SecuritiesResponse.securities, SecurityRow => Security, InvalidSecurity;
+    decode_orderbook_json_with_endpoint: OrderbookResponse.orderbook, OrderbookLevelRow => OrderbookLevel, InvalidOrderbook;
+    decode_candle_borders_json_with_endpoint: CandleBordersResponse.borders, CandleBorderRow => CandleBorder, InvalidCandleBorder;
+    decode_candles_json_with_endpoint: CandlesResponse.candles, CandleRow => Candle, InvalidCandle;
+    decode_trades_json_with_endpoint: TradesResponse.trades, TradeRow => Trade, InvalidTrade;
+    decode_index_analytics_json_with_endpoint: IndexAnalyticsResponse.analytics, IndexAnalyticsRow => IndexAnalytics, InvalidIndexAnalytics;
     #[cfg(feature = "history")]
-    decode_history_dates_json_with_endpoint: HistoryDates, HistoryDatesResponse.dates, convert_history_dates_rows;
-    decode_turnovers_json_with_endpoint: Turnover, TurnoversResponse.turnovers, convert_turnover_rows;
+    decode_history_dates_json_with_endpoint: HistoryDatesResponse.dates, HistoryDatesRow => HistoryDates, InvalidHistoryDates;
+    decode_turnovers_json_with_endpoint: TurnoversResponse.turnovers, TurnoverRow => Turnover, InvalidTurnover;
     #[cfg(feature = "news")]
-    decode_sitenews_json_with_endpoint: SiteNews, SiteNewsResponse.sitenews, convert_sitenews_rows;
+    decode_sitenews_json_with_endpoint: SiteNewsResponse.sitenews, SiteNewsRow => SiteNews, InvalidSiteNews;
     #[cfg(feature = "news")]
-    decode_events_json_with_endpoint: Event, EventsResponse.events, convert_event_rows;
-    decode_secstats_json_with_endpoint: SecStat, SecStatsResponse.secstats, convert_secstats_rows;
-}
-
-pub(super) fn decode_indexes_json_payload(payload: &str) -> Result<Vec<Index>, MoexError> {
-    let payload: IndexesResponse = parse_json(payload, INDEXES_ENDPOINT)?;
-    convert_index_rows(payload.indices.data, INDEXES_ENDPOINT)
-}
-
-pub(super) fn decode_engines_json_payload(payload: &str) -> Result<Vec<Engine>, MoexError> {
-    let payload: EnginesResponse = parse_json(payload, ENGINES_ENDPOINT)?;
-    convert_engine_rows(payload.engines.data, ENGINES_ENDPOINT)
+    decode_events_json_with_endpoint: EventsResponse.events, EventRow => Event, InvalidEvent;
+    decode_secstats_json_with_endpoint: SecStatsResponse.secstats, SecStatRow => SecStat, InvalidSecStat;
 }
 
 pub(super) fn decode_board_security_snapshots_json_with_endpoint(
@@ -112,7 +124,14 @@ pub(super) fn decode_board_security_snapshots_json_with_endpoint(
         payload.securities.data.into_iter().enumerate()
     {
         let secid = parse_snapshot_secid(endpoint, "securities", row, secid)?;
-        let lot_size = parse_snapshot_lot_size(endpoint, "securities", row, lot_size_raw)?;
+        let lot_size = SecuritySnapshot::parse_lot_size(lot_size_raw).map_err(|source| {
+            MoexError::InvalidSecuritySnapshot {
+                endpoint: endpoint.into(),
+                table: "securities",
+                row,
+                source,
+            }
+        })?;
         let last = last_by_secid.remove(&secid).and_then(|(_, last)| last);
 
         let snapshot =
@@ -147,8 +166,13 @@ pub(super) fn decode_history_json_with_endpoint(
     payload: &str,
     endpoint: &str,
 ) -> Result<Vec<HistoryRecord>, MoexError> {
-    let rows = decode_raw_table_rows_json_with_endpoint(payload, endpoint, "history")?;
-    convert_history_rows(rows, endpoint)
+    let rows: Vec<crate::models::HistoryRow> =
+        decode_raw_table_rows_json_with_endpoint(payload, endpoint, "history")?;
+    convert_rows(rows, |row, source| MoexError::InvalidHistory {
+        endpoint: endpoint.into(),
+        row,
+        source,
+    })
 }
 
 fn parse_snapshot_secid(
@@ -163,31 +187,6 @@ fn parse_snapshot_secid(
         row,
         source: ParseSecuritySnapshotError::InvalidSecId(source),
     })
-}
-
-fn parse_snapshot_lot_size(
-    endpoint: &str,
-    table: &'static str,
-    row: usize,
-    lot_size: Option<i64>,
-) -> Result<Option<u32>, MoexError> {
-    match lot_size {
-        None => Ok(None),
-        Some(raw) if raw < 0 => Err(MoexError::InvalidSecuritySnapshot {
-            endpoint: endpoint.to_owned().into_boxed_str(),
-            table,
-            row,
-            source: ParseSecuritySnapshotError::NegativeLotSize(raw),
-        }),
-        Some(raw) => u32::try_from(raw)
-            .map(Some)
-            .map_err(|_| MoexError::InvalidSecuritySnapshot {
-                endpoint: endpoint.to_owned().into_boxed_str(),
-                table,
-                row,
-                source: ParseSecuritySnapshotError::LotSizeOutOfRange(raw),
-            }),
-    }
 }
 
 #[cfg(test)]

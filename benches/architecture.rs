@@ -38,7 +38,12 @@ fn measure(name: &str, mut action: impl FnMut()) {
         *sample = start.elapsed().as_nanos() / iterations;
     }
     samples.sort_unstable();
-    println!("{name}: {} ns/iteration", samples[samples.len() / 2]);
+    println!(
+        "{name}: {} ns/iteration (p10={}, p90={})",
+        samples[samples.len() / 2],
+        samples[1],
+        samples[samples.len() - 2]
+    );
 }
 
 fn main() {
@@ -67,6 +72,12 @@ fn main() {
         r#"["id","tag","title","from","modified_at"]"#,
         r#"[77,"site","Технические работы",null,"2026-03-06 22:00:00"]"#,
     );
+    let analytics = table(
+        "analytics",
+        "[]",
+        r#"["IMOEX","2026-03-06","SBER","Сбербанк","SBER",12.5,3,"2026-03-06"]"#,
+    );
+    let engines = table("engines", "[]", r#"[1,"stock","Фондовый рынок"]"#);
     let trades = table("trades", "[]", r#"[15780983820,"06:59:49",314.8,1,314.8]"#);
     let turnovers = table(
         "turnovers",
@@ -90,6 +101,12 @@ fn main() {
     });
     measure("events_100", || {
         black_box(decode::events_json(black_box(&events)).unwrap());
+    });
+    measure("analytics_100", || {
+        black_box(decode::index_analytics_json(black_box(&analytics)).unwrap());
+    });
+    measure("engines_100", || {
+        black_box(decode::engines_json(black_box(&engines)).unwrap());
     });
     measure("trades_100", || {
         black_box(decode::trades_json(black_box(&trades)).unwrap());
@@ -182,13 +199,24 @@ fn main() {
                 .set_read_timeout(Some(std::time::Duration::from_secs(3)))
                 .unwrap();
             let mut reader = BufReader::new(&stream);
+            let mut request = String::new();
+            reader.read_line(&mut request).unwrap();
             loop {
                 let mut line = String::new();
                 if reader.read_line(&mut line).unwrap() == 0 || line == "\r\n" {
                     break;
                 }
             }
-            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}").unwrap();
+            let body = if request.contains("/iss/securities.json?") {
+                if request.contains("start=0&") {
+                    r#"{"securities":{"data":[["SBER","Sber","Sberbank","A"],["GAZP","Gaz","Gazprom","A"]]}}"#
+                } else {
+                    r#"{"securities":{"data":[["ROSN","Ros","Rosneft","A"]]}}"#
+                }
+            } else {
+                "{}"
+            };
+            write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
         }
     });
     let client = Client::builder()
@@ -203,6 +231,14 @@ fn main() {
                 .raw_endpoint(IssEndpoint::Engines)
                 .param("q", "A&B +/Я")
                 .send_payload()
+                .unwrap(),
+        );
+    });
+    measure("pagination_http", || {
+        black_box(
+            client
+                .global_securities_pages(const { std::num::NonZeroU32::new(2).unwrap() })
+                .all()
                 .unwrap(),
         );
     });

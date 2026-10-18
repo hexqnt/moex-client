@@ -10,7 +10,7 @@ use serde::de::{
 };
 use serde_json::value::RawValue;
 
-use super::MoexError;
+use super::{MoexError, parse_json};
 
 #[derive(Debug, serde::Deserialize)]
 struct RawIssTableRowsPayload {
@@ -191,6 +191,7 @@ fn decode_single_raw_table_payload<'de, T: serde::Deserialize<'de>>(
     .deserialize(&mut deserializer)
 }
 
+#[inline]
 fn check_row_width(
     expected: usize,
     actual: usize,
@@ -284,14 +285,9 @@ pub(in crate::moex) fn decode_raw_tables_json_with_endpoint(
     payload: &str,
     endpoint: &str,
 ) -> Result<RawTables, MoexError> {
-    let endpoint = endpoint.to_owned().into_boxed_str();
-    let raw_blocks = serde_json::from_str(payload).map_err(|source| MoexError::Decode {
-        endpoint: endpoint.clone(),
-        source,
-    })?;
     Ok(RawTables {
-        endpoint,
-        blocks: raw_blocks,
+        blocks: parse_json(payload, endpoint)?,
+        endpoint: endpoint.into(),
     })
 }
 

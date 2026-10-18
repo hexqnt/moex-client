@@ -236,3 +236,6 @@ impl IssEndpoint<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

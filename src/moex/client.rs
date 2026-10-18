@@ -22,8 +22,8 @@ use super::constants::*;
 use super::payload::{
     decode_board_security_snapshots_json_with_endpoint, decode_boards_json_with_endpoint,
     decode_candle_borders_json_with_endpoint, decode_candles_json_with_endpoint,
-    decode_engines_json_payload, decode_index_analytics_json_with_endpoint,
-    decode_indexes_json_payload, decode_markets_json_with_endpoint,
+    decode_engines_json_with_endpoint, decode_index_analytics_json_with_endpoint,
+    decode_indexes_json_with_endpoint, decode_markets_json_with_endpoint,
     decode_orderbook_json_with_endpoint, decode_raw_table_rows_json_with_endpoint,
     decode_secstats_json_with_endpoint, decode_securities_json_with_endpoint,
     decode_security_boards_json_with_endpoint, decode_trades_json_with_endpoint,
@@ -60,10 +60,11 @@ mod request;
 mod scopes;
 mod transport;
 
+use pagination::PaginationTracker;
 use request::*;
 
 pub use builders::*;
-pub use pagination::*;
+pub use endpoints::*;
 pub use raw::*;
 pub use scopes::*;
 pub use transport::*;
@@ -73,5 +74,5 @@ pub(super) use request::{
 };
 #[cfg(feature = "history")]
 pub(super) use request::{append_history_query_to_url, optional_single_history_dates};
-#[cfg(test)]
+#[cfg(all(test, feature = "blocking"))]
 pub(super) use request::{looks_like_json_payload, normalize_raw_endpoint_path, truncate_prefix};

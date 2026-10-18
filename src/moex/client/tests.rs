@@ -68,6 +68,48 @@ fn pagination_rejects_repeated_first_key_without_advancing() {
 }
 
 #[test]
+fn pagination_repeated_key_is_rejected_even_on_a_short_page() {
+    let mut tracker = tracker(2);
+    tracker
+        .accept_page(vec![1, 2], |key| *key)
+        .expect("first page");
+    assert!(matches!(
+        tracker.accept_page(vec![1], |key| *key),
+        Err(MoexError::PaginationStuck {
+            start: 2,
+            limit: 2,
+            ..
+        })
+    ));
+    assert_eq!(
+        tracker.next_page_request().expect("retry page").start,
+        Some(2)
+    );
+    assert_eq!(
+        tracker
+            .accept_page(vec![3], |key| *key)
+            .expect("replacement page"),
+        Some(vec![3])
+    );
+    assert_eq!(tracker.next_page_request(), None);
+}
+
+#[test]
+fn pagination_oversized_page_advances_by_requested_limit() {
+    let mut tracker = tracker(2);
+    assert_eq!(
+        tracker
+            .accept_page(vec![1, 2, 3], |key| *key)
+            .expect("oversized page"),
+        Some(vec![1, 2, 3])
+    );
+    assert_eq!(
+        tracker.next_page_request().expect("next page").start,
+        Some(2)
+    );
+}
+
+#[test]
 fn pagination_reports_overflow_instead_of_wrapping() {
     let mut tracker = tracker(2);
     tracker.start = u32::MAX - 1;
@@ -81,6 +123,10 @@ fn pagination_reports_overflow_instead_of_wrapping() {
         tracker.next_page_request().expect("same offset").start,
         Some(u32::MAX - 1)
     );
+    assert!(matches!(
+        tracker.accept_page(vec![1, 2], |key| *key),
+        Err(MoexError::PaginationStuck { start, limit: 2, .. }) if start == u32::MAX - 1
+    ));
 }
 
 #[test]
@@ -133,7 +179,7 @@ fn payload_http_error_takes_precedence_over_content_detection() {
     let error = validate_payload(
         "engines.json",
         StatusCode::BAD_GATEWAY,
-        Some("text/html".into()),
+        Some(reqwest::header::HeaderValue::from_static("text/html")),
         body,
     )
     .expect_err("HTTP error");
@@ -148,7 +194,9 @@ fn payload_detection_keeps_header_and_body_fallback_contracts() {
         validate_payload(
             "test.json",
             StatusCode::OK,
-            Some("APPLICATION/JSON".into()),
+            Some(reqwest::header::HeaderValue::from_static(
+                "APPLICATION/JSON"
+            )),
             "text".into()
         )
         .expect("JSON content type"),
@@ -161,6 +209,46 @@ fn payload_detection_keeps_header_and_body_fallback_contracts() {
     assert!(
         matches!(validate_payload("test.json", StatusCode::OK, None, "<html>".into()), Err(MoexError::NonJsonPayload { endpoint, content_type: None, body_prefix }) if endpoint.as_ref() == "test.json" && body_prefix.as_ref() == "<html>")
     );
+}
+
+#[test]
+fn payload_detection_ignores_non_text_content_type() {
+    let content_type =
+        reqwest::header::HeaderValue::from_bytes(b"application/\xff").expect("valid opaque header");
+    assert_eq!(
+        validate_payload(
+            "test.json",
+            StatusCode::OK,
+            Some(content_type.clone()),
+            "[]".into()
+        )
+        .expect("JSON body fallback"),
+        "[]"
+    );
+    assert!(matches!(
+        validate_payload(
+            "test.json",
+            StatusCode::OK,
+            Some(content_type.clone()),
+            "text".into()
+        ),
+        Err(MoexError::NonJsonPayload {
+            content_type: None,
+            ..
+        })
+    ));
+    assert!(matches!(
+        validate_payload(
+            "test.json",
+            StatusCode::BAD_GATEWAY,
+            Some(content_type),
+            "text".into()
+        ),
+        Err(MoexError::HttpStatus {
+            content_type: None,
+            ..
+        })
+    ));
 }
 
 #[cfg(feature = "blocking")]

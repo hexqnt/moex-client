@@ -3,7 +3,6 @@
 #[cfg(any(feature = "async", feature = "blocking"))]
 mod client;
 mod constants;
-mod convert;
 pub mod decode;
 mod endpoint;
 mod error;

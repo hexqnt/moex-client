@@ -309,31 +309,25 @@ pub(super) fn build_raw_request(
     Ok((endpoint, url))
 }
 
-pub(super) fn response_content_type(headers: &HeaderMap) -> Option<Box<str>> {
-    headers
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .map(|value| value.to_owned().into_boxed_str())
-}
-
 pub(super) fn validate_payload(
     endpoint: &str,
     status: reqwest::StatusCode,
-    content_type: Option<Box<str>>,
+    content_type: Option<reqwest::header::HeaderValue>,
     payload: String,
 ) -> Result<String, MoexError> {
+    let content_type = content_type.as_ref().and_then(|value| value.to_str().ok());
     if !status.is_success() {
         return Err(MoexError::HttpStatus {
             endpoint: endpoint.to_owned().into_boxed_str(),
             status,
-            content_type,
+            content_type: content_type.map(Into::into),
             body_prefix: truncate_prefix(&payload, NON_JSON_BODY_PREFIX_CHARS),
         });
     }
-    if !looks_like_json_payload(content_type.as_deref(), &payload) {
+    if !looks_like_json_payload(content_type, &payload) {
         return Err(MoexError::NonJsonPayload {
             endpoint: endpoint.to_owned().into_boxed_str(),
-            content_type,
+            content_type: content_type.map(Into::into),
             body_prefix: truncate_prefix(&payload, NON_JSON_BODY_PREFIX_CHARS),
         });
     }

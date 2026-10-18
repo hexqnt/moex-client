@@ -10,9 +10,10 @@ use crate::models::{HistoryDates, HistoryRecord};
 use super::MoexError;
 use super::constants::{
     BOARDS_ENDPOINT_TEMPLATE, CANDLEBORDERS_ENDPOINT_TEMPLATE, CANDLES_ENDPOINT_TEMPLATE,
-    INDEX_ANALYTICS_ENDPOINT_TEMPLATE, MARKETS_ENDPOINT_TEMPLATE, ORDERBOOK_ENDPOINT_TEMPLATE,
-    SECSTATS_ENDPOINT_TEMPLATE, SECURITIES_ENDPOINT_TEMPLATE, SECURITY_BOARDS_ENDPOINT_TEMPLATE,
-    TRADES_ENDPOINT_TEMPLATE, TURNOVERS_ENDPOINT,
+    ENGINES_ENDPOINT, INDEX_ANALYTICS_ENDPOINT_TEMPLATE, INDEXES_ENDPOINT,
+    MARKETS_ENDPOINT_TEMPLATE, ORDERBOOK_ENDPOINT_TEMPLATE, SECSTATS_ENDPOINT_TEMPLATE,
+    SECURITIES_ENDPOINT_TEMPLATE, SECURITY_BOARDS_ENDPOINT_TEMPLATE, TRADES_ENDPOINT_TEMPLATE,
+    TURNOVERS_ENDPOINT,
 };
 #[cfg(feature = "news")]
 use super::constants::{EVENTS_ENDPOINT, SITENEWS_ENDPOINT};
@@ -21,8 +22,8 @@ use super::constants::{HISTORY_DATES_ENDPOINT_TEMPLATE, HISTORY_ENDPOINT_TEMPLAT
 use super::payload::{
     decode_board_security_snapshots_json_with_endpoint, decode_boards_json_with_endpoint,
     decode_candle_borders_json_with_endpoint, decode_candles_json_with_endpoint,
-    decode_engines_json_payload, decode_index_analytics_json_with_endpoint,
-    decode_indexes_json_payload, decode_markets_json_with_endpoint,
+    decode_engines_json_with_endpoint, decode_index_analytics_json_with_endpoint,
+    decode_indexes_json_with_endpoint, decode_markets_json_with_endpoint,
     decode_orderbook_json_with_endpoint, decode_raw_table_rows_json_with_endpoint,
     decode_raw_table_view_json_with_endpoint, decode_raw_tables_json_with_endpoint,
     decode_secstats_json_with_endpoint, decode_securities_json_with_endpoint,
@@ -38,12 +39,12 @@ pub use super::payload::{RawTableView, RawTables};
 
 /// Разобрать JSON-представление `indices` ISS в доменные типы.
 pub fn indexes_json(payload: &str) -> Result<Vec<Index>, MoexError> {
-    decode_indexes_json_payload(payload)
+    decode_indexes_json_with_endpoint(payload, INDEXES_ENDPOINT)
 }
 
 /// Разобрать JSON-представление `engines` ISS в доменные типы.
 pub fn engines_json(payload: &str) -> Result<Vec<Engine>, MoexError> {
-    decode_engines_json_payload(payload)
+    decode_engines_json_with_endpoint(payload, ENGINES_ENDPOINT)
 }
 
 /// Разобрать JSON-представление `markets` ISS в доменные типы.

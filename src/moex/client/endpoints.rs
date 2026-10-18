@@ -29,7 +29,7 @@ macro_rules! table_endpoint {
 table_endpoint!(
     /// Получить список индексов из таблицы `indices`.
     indexes() -> Vec<Index>, INDEXES_ENDPOINT, Indices,
-    |payload, _endpoint| decode_indexes_json_payload(payload)
+    decode_indexes_json_with_endpoint
 );
 table_endpoint!(
     /// Получить обороты ISS (`/iss/turnovers`).
@@ -44,7 +44,7 @@ table_endpoint!(
 table_endpoint!(
     /// Получить доступные торговые движки ISS (`engines`).
     engines() -> Vec<Engine>, ENGINES_ENDPOINT, Engines,
-    |payload, _endpoint| decode_engines_json_payload(payload)
+    decode_engines_json_with_endpoint
 );
 table_endpoint!(
     /// Получить рынки (`markets`) для заданного движка.
@@ -116,6 +116,45 @@ fn decode_single_history_dates(
     )
 }
 
+macro_rules! pages {
+    ($name:ident, $client:ty, $mode:ident, [$($asyncness:tt)?], $item:ty, $key:ty,
+     args { $($arg:ident: $ty:ty),* }, query { $($query:ident: $query_ty:ty)? },
+     $fetch:ident, $first_key:expr) => {
+        /// Ленивый пагинатор по страницам ISS.
+        pub struct $name<'a> {
+            pub(super) client: &'a $client,
+            $(pub(super) $arg: &'a $ty,)*
+            $(pub(super) $query: $query_ty,)?
+            pub(super) pagination: PaginationTracker<$key>,
+        }
+
+        impl $name<'_> {
+            /// Получить следующую страницу ISS.
+            pub $($asyncness)? fn next_page(&mut self) -> Result<Option<Vec<$item>>, MoexError> {
+                let Some(paging) = self.pagination.next_page_request() else {
+                    return Ok(None);
+                };
+                let page = await_result!($mode, self.client.$fetch($(self.$arg,)* $(self.$query,)? paging))?;
+                self.pagination.accept_page(page, $first_key)
+            }
+
+            /// Собрать все страницы в один `Vec`.
+            pub $($asyncness)? fn try_collect(mut self) -> Result<Vec<$item>, MoexError> {
+                let mut items = Vec::new();
+                while let Some(page) = await_result!($mode, self.next_page())? {
+                    items.extend(page);
+                }
+                Ok(items)
+            }
+
+            /// Алиас для [`Self::try_collect`].
+            pub $($asyncness)? fn all(self) -> Result<Vec<$item>, MoexError> {
+                await_result!($mode, self.try_collect())
+            }
+        }
+    };
+}
+
 macro_rules! paginated_methods {
     ($mode:ident, [$($asyncness:tt)?], $pages_type:ident, $item:ty,
      $query_method:ident, $pages_method:ident, $fetch:ident,
@@ -154,7 +193,7 @@ macro_rules! paginated_methods {
 }
 
 macro_rules! paginated_endpoint {
-    ($blocking_pages:ident, $async_pages:ident, $item:ty,
+    ($blocking_pages:ident, $async_pages:ident, $item:ty, $key:ty, $first_key:expr,
      $query_method:ident, $pages_method:ident, $fetch:ident,
      args { $($arg:ident: $ty:ty),* }, query { $($query:ident: $query_ty:ty => $append_query:ident)? },
      $endpoint:expr, $table:ident, $decode:ident) => {
@@ -162,10 +201,16 @@ macro_rules! paginated_endpoint {
         impl BlockingMoexClient {
             paginated_methods!(blocking, [], $blocking_pages, $item, $query_method, $pages_method, $fetch, args { $($arg: $ty),* }, query { $($query: $query_ty => $append_query)? }, $endpoint, $table, $decode);
         }
+        #[cfg(feature = "blocking")]
+        pages!($blocking_pages, BlockingMoexClient, blocking, [], $item, $key,
+            args { $($arg: $ty),* }, query { $($query: $query_ty)? }, $fetch, $first_key);
         #[cfg(feature = "async")]
         impl AsyncMoexClient {
             paginated_methods!(asynchronous, [async], $async_pages, $item, $query_method, $pages_method, $fetch, args { $($arg: $ty),* }, query { $($query: $query_ty => $append_query)? }, $endpoint, $table, $decode);
         }
+        #[cfg(feature = "async")]
+        pages!($async_pages, AsyncMoexClient, asynchronous, [async], $item, $key,
+            args { $($arg: $ty),* }, query { $($query: $query_ty)? }, $fetch, $first_key);
     };
 }
 
@@ -173,6 +218,8 @@ paginated_endpoint!(
     IndexAnalyticsPages,
     AsyncIndexAnalyticsPages,
     IndexAnalytics,
+    (chrono::NaiveDate, SecId),
+    |item: &IndexAnalytics| (item.trade_session_date(), item.secid().clone()),
     index_analytics_query,
     index_analytics_pages,
     fetch_index_analytics_page,
@@ -186,6 +233,8 @@ paginated_endpoint!(
     GlobalSecuritiesPages,
     AsyncGlobalSecuritiesPages,
     Security,
+    SecId,
+    |item: &Security| item.secid().clone(),
     global_securities_query,
     global_securities_pages,
     fetch_global_securities_page,
@@ -199,6 +248,8 @@ paginated_endpoint!(
     MarketSecuritiesPages,
     AsyncMarketSecuritiesPages,
     Security,
+    SecId,
+    |item: &Security| item.secid().clone(),
     market_securities_query,
     market_securities_pages,
     fetch_market_securities_page,
@@ -215,6 +266,8 @@ paginated_endpoint!(
     SecuritiesPages,
     AsyncSecuritiesPages,
     Security,
+    SecId,
+    |item: &Security| item.secid().clone(),
     securities_query,
     securities_pages,
     fetch_securities_page,
@@ -232,6 +285,8 @@ paginated_endpoint!(
     MarketTradesPages,
     AsyncMarketTradesPages,
     Trade,
+    u64,
+    Trade::tradeno,
     market_trades_query,
     market_trades_pages,
     fetch_market_trades_page,
@@ -248,6 +303,8 @@ paginated_endpoint!(
     TradesPages,
     AsyncTradesPages,
     Trade,
+    u64,
+    Trade::tradeno,
     trades_query,
     trades_pages,
     fetch_trades_page,
@@ -266,6 +323,8 @@ paginated_endpoint!(
     SecStatsPages,
     AsyncSecStatsPages,
     SecStat,
+    (SecId, BoardId),
+    |item: &SecStat| (item.secid().clone(), item.boardid().clone()),
     secstats_query,
     secstats_pages,
     fetch_secstats_page,
@@ -279,7 +338,7 @@ paginated_endpoint!(
     decode_secstats_json_with_endpoint
 );
 paginated_endpoint!(
-    CandlesPages, AsyncCandlesPages, Candle,
+    CandlesPages, AsyncCandlesPages, Candle, chrono::NaiveDateTime, Candle::begin,
     candles_query, candles_pages, fetch_candles_page,
     args { engine: EngineName, market: MarketName, board: BoardId, security: SecId }, query { query: CandleQuery => append_candle_query_to_url }, candles_endpoint(engine, market, board, security), Candles, decode_candles_json_with_endpoint
 );
@@ -288,6 +347,8 @@ paginated_endpoint!(
     SiteNewsPages,
     AsyncSiteNewsPages,
     SiteNews,
+    u64,
+    SiteNews::id,
     sitenews_query,
     sitenews_pages,
     fetch_sitenews_page,
@@ -302,6 +363,8 @@ paginated_endpoint!(
     EventsPages,
     AsyncEventsPages,
     Event,
+    u64,
+    Event::id,
     events_query,
     events_pages,
     fetch_events_page,
@@ -313,7 +376,7 @@ paginated_endpoint!(
 );
 #[cfg(feature = "history")]
 paginated_endpoint!(
-    HistoryPages, AsyncHistoryPages, HistoryRecord,
+    HistoryPages, AsyncHistoryPages, HistoryRecord, chrono::NaiveDate, HistoryRecord::tradedate,
     history_query_filtered, history_pages_filtered, fetch_history_page,
     args { engine: EngineName, market: MarketName, board: BoardId, security: SecId }, query { query: HistoryQuery => append_history_query_to_url }, history_endpoint(engine, market, board, security), History, decode_history_json_with_endpoint
 );

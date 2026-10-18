@@ -71,8 +71,16 @@ macro_rules! raw_builder {
             ///
             /// В отличие от `send_payload`, метод не проверяет `2xx` и JSON-формат.
             pub $($asyncness)? fn send_response(self) -> Result<RawIssResponse, MoexError> {
-                let (_, response) = await_result!($mode, self.execute_response())?;
-                Ok(response)
+                let (endpoint, endpoint_url) = self.build_request()?;
+                let response = await_result!(
+                    $mode,
+                    self.client.fetch_response(&endpoint, endpoint_url)
+                )?;
+                let status = response.status();
+                let headers = response.headers().clone();
+                let body = await_result!($mode, response.text())
+                    .map_err(|source| MoexError::ReadBody { endpoint, source })?;
+                Ok(RawIssResponse::new(status, headers, body))
             }
 
             /// Выполнить raw-запрос и вернуть тело ответа как строку.
@@ -107,22 +115,6 @@ macro_rules! raw_builder {
                     self.client.fetch_payload(&endpoint, endpoint_url)
                 )?;
                 Ok((endpoint, payload))
-            }
-
-            $($asyncness)? fn execute_response(self) -> Result<(Box<str>, RawIssResponse), MoexError> {
-                let (endpoint, endpoint_url) = self.build_request()?;
-                let response = await_result!(
-                    $mode,
-                    self.client.fetch_response(&endpoint, endpoint_url)
-                )?;
-                let status = response.status();
-                let headers = response.headers().clone();
-                let body =
-                    await_result!($mode, response.text()).map_err(|source| MoexError::ReadBody {
-                        endpoint: endpoint.clone(),
-                        source,
-                    })?;
-                Ok((endpoint, RawIssResponse::new(status, headers, body)))
             }
 
             pub(super) fn build_request(&self) -> Result<(Box<str>, Url), MoexError> {

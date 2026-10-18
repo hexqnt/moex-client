@@ -53,6 +53,10 @@ fn selected_table_preserves_trailing_input_behavior() {
 #[test]
 fn typed_table_envelope_keeps_missing_and_duplicate_field_diagnostics() {
     for (payload, message) in [
+        (
+            "true",
+            "invalid type: boolean `true`, expected struct EnginesResponse",
+        ),
         (r#"{}"#, "missing field `engines`"),
         (
             r#"{"engines":{"data":[]},"engines":{"data":[]}}"#,

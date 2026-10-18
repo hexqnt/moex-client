@@ -241,7 +241,10 @@ impl BlockingMoexClient {
     ) -> Result<String, MoexError> {
         let response = self.fetch_response(endpoint, endpoint_url)?;
         let status = response.status();
-        let content_type = response_content_type(response.headers());
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .cloned();
         let payload = response.text().map_err(|source| MoexError::ReadBody {
             endpoint: endpoint.to_owned().into_boxed_str(),
             source,
@@ -348,7 +351,10 @@ impl AsyncMoexClient {
     ) -> Result<String, MoexError> {
         let response = self.fetch_response(endpoint, endpoint_url).await?;
         let status = response.status();
-        let content_type = response_content_type(response.headers());
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .cloned();
         let payload = response
             .text()
             .await
