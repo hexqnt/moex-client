@@ -19,14 +19,14 @@ mod indexes;
 mod news;
 mod trading;
 
+use std::num::NonZeroU32;
+
 pub use candles::{Candle, CandleBorder, CandleInterval, CandleOhlcv, CandleQuery};
 pub use catalog::{Board, Engine, Market, Security, SecurityBoard, SecuritySnapshot};
 pub use history::{HistoryDates, HistoryQuery, HistoryRecord};
 pub use indexes::{Index, IndexAnalytics};
 pub use news::{Event, SiteNews};
 pub use trading::{BuySell, OrderbookLevel, SecStat, Trade, Turnover};
-
-use std::num::NonZeroU32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 /// Режим получения страницы данных ISS.

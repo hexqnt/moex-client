@@ -5,16 +5,44 @@
 
 use std::borrow::Cow;
 
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use chrono::format::{Item, Numeric, Pad, Parsed, parse};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime, ParseResult};
 use serde::{Deserialize, Deserializer};
+
+// Статический datetime-формат и его date/time-срезы исключают повторный разбор strftime для каждого поля.
+const DATETIME_ITEMS: &[Item<'static>] = &[
+    Item::Numeric(Numeric::Year, Pad::Zero),
+    Item::Literal("-"),
+    Item::Numeric(Numeric::Month, Pad::Zero),
+    Item::Literal("-"),
+    Item::Numeric(Numeric::Day, Pad::Zero),
+    Item::Space(" "),
+    Item::Numeric(Numeric::Hour, Pad::Zero),
+    Item::Literal(":"),
+    Item::Numeric(Numeric::Minute, Pad::Zero),
+    Item::Literal(":"),
+    Item::Numeric(Numeric::Second, Pad::Zero),
+];
+const DATE_ITEMS: &[Item<'static>] = DATETIME_ITEMS.split_at(5).0;
+const TIME_ITEMS: &[Item<'static>] = DATETIME_ITEMS.split_at(6).1;
 
 // Заимствуем неэкранированный JSON-текст; для escape-последовательностей и owned-ввода serde сохраняет владение.
 #[derive(Deserialize)]
 #[serde(transparent)]
 struct IssText<'a>(#[serde(borrow)] Cow<'a, str>);
 
+fn parse_temporal<T>(
+    raw: &str,
+    items: &[Item<'_>],
+    convert: impl FnOnce(&Parsed) -> ParseResult<T>,
+) -> ParseResult<T> {
+    let mut parsed = Parsed::new();
+    parse(&mut parsed, raw, items.iter())?;
+    convert(&parsed)
+}
+
 macro_rules! temporal_serde {
-    ($module:ident, $value:ty, $format:literal) => {
+    ($module:ident, $value:ty, $items:ident, $convert:expr) => {
         mod $module {
             use super::*;
 
@@ -23,11 +51,11 @@ macro_rules! temporal_serde {
                 D: Deserializer<'de>,
             {
                 let raw = IssText::deserialize(deserializer)?.0;
-                <$value>::parse_from_str(raw.trim(), $format).map_err(serde::de::Error::custom)
+                parse_temporal(raw.trim(), $items, $convert).map_err(serde::de::Error::custom)
             }
         }
     };
-    (optional $module:ident, $value:ty, $format:literal) => {
+    (optional $module:ident, $value:ty, $items:ident, $convert:expr) => {
         mod $module {
             use super::*;
 
@@ -43,7 +71,7 @@ macro_rules! temporal_serde {
                         if raw.is_empty() {
                             Ok(None)
                         } else {
-                            <$value>::parse_from_str(raw, $format)
+                            parse_temporal(raw, $items, $convert)
                                 .map(Some)
                                 .map_err(serde::de::Error::custom)
                         }
@@ -54,11 +82,13 @@ macro_rules! temporal_serde {
     };
 }
 
-temporal_serde!(optional optional_date, NaiveDate, "%Y-%m-%d");
-temporal_serde!(datetime_serde, NaiveDateTime, "%Y-%m-%d %H:%M:%S");
-temporal_serde!(optional optional_datetime_serde, NaiveDateTime, "%Y-%m-%d %H:%M:%S");
-temporal_serde!(date_serde, NaiveDate, "%Y-%m-%d");
-temporal_serde!(time_serde, NaiveTime, "%H:%M:%S");
+temporal_serde!(optional optional_date, NaiveDate, DATE_ITEMS, Parsed::to_naive_date);
+temporal_serde!(datetime_serde, NaiveDateTime, DATETIME_ITEMS, |parsed| {
+    parsed.to_naive_datetime_with_offset(0)
+});
+temporal_serde!(optional optional_datetime_serde, NaiveDateTime, DATETIME_ITEMS, |parsed| parsed.to_naive_datetime_with_offset(0));
+temporal_serde!(date_serde, NaiveDate, DATE_ITEMS, Parsed::to_naive_date);
+temporal_serde!(time_serde, NaiveTime, TIME_ITEMS, Parsed::to_naive_time);
 
 #[derive(Debug, Deserialize)]
 /// Строка таблицы `indices`: `indexid, shortname, from, till`.
@@ -189,6 +219,15 @@ pub(crate) struct BoardRow(
 );
 
 #[derive(Debug, Deserialize)]
+/// Строка таблицы `boards` внутри `securities/{secid}`.
+pub(crate) struct SecurityBoardRow(
+    pub(crate) String,
+    pub(crate) String,
+    pub(crate) String,
+    pub(crate) i64,
+);
+
+#[derive(Debug, Deserialize)]
 /// Строка таблицы `securities`.
 pub(crate) struct SecurityRow(
     pub(crate) String,
@@ -236,3 +275,6 @@ pub(crate) struct OrderbookLevelRow(
     pub(crate) Option<f64>,
     pub(crate) Option<i64>,
 );
+
+#[cfg(test)]
+mod tests;

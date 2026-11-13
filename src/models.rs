@@ -27,7 +27,7 @@ pub use selectors::{IndexAnalyticsExt, IndexesExt, SecurityBoardsExt, actual_ind
 
 pub(crate) use wire::{
     BoardRow, CandleBorderRow, CandleRow, EngineRow, IndexAnalyticsRow, IndexRow, MarketRow,
-    OrderbookLevelRow, SecStatRow, SecurityRow, TradeRow, TurnoverRow,
+    OrderbookLevelRow, SecStatRow, SecurityBoardRow, SecurityRow, TradeRow, TurnoverRow,
 };
 #[cfg(feature = "news")]
 pub(crate) use wire::{EventRow, SiteNewsRow};

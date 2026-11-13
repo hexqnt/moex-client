@@ -1,5 +1,7 @@
+#[cfg(feature = "async")]
+use crate::moex::tests::immediate;
+
 use super::*;
-use reqwest::StatusCode;
 
 fn tracker(limit: u32) -> PaginationTracker<u32> {
     PaginationTracker::new("test.json", NonZeroU32::new(limit).expect("non-zero limit"))
@@ -129,128 +131,6 @@ fn pagination_reports_overflow_instead_of_wrapping() {
     ));
 }
 
-#[test]
-fn table_request_preserves_query_order_for_multiple_tables_and_pagination() {
-    let base = Url::parse("https://example.test/custom/iss/").expect("valid URL");
-    let mut url =
-        table_url(&base, true, "securities.json", TableSelection::Snapshots).expect("table URL");
-    append_pagination_to_url(
-        &mut url,
-        Pagination::default()
-            .with_start(0)
-            .with_limit(NonZeroU32::new(2).expect("non-zero limit")),
-    );
-    assert_eq!(url.path(), "/custom/iss/securities.json");
-    assert_eq!(
-        url.query_pairs().collect::<Vec<_>>(),
-        [
-            ("iss.meta".into(), "on".into()),
-            ("iss.only".into(), "securities,marketdata".into()),
-            ("securities.columns".into(), "SECID,LOTSIZE".into()),
-            ("marketdata.columns".into(), "SECID,LAST".into()),
-            ("start".into(), "0".into()),
-            ("limit".into(), "2".into()),
-        ]
-    );
-}
-
-#[test]
-fn raw_request_preserves_explicit_metadata_and_repeated_parameters() {
-    let base = Url::parse("https://example.test/iss/").expect("valid URL");
-    let query = [
-        ("iss.only".into(), "securities".into()),
-        ("iss.meta".into(), "on".into()),
-        ("iss.meta".into(), "off".into()),
-    ];
-    let (endpoint, url) =
-        build_raw_request(&base, false, Some(" /iss/securities "), &query).expect("raw URL");
-    assert_eq!(endpoint.as_ref(), "securities.json");
-    assert_eq!(
-        url.query(),
-        Some("iss.only=securities&iss.meta=on&iss.meta=off")
-    );
-    let (_, url) = build_raw_request(&base, true, Some("engines"), &[]).expect("default metadata");
-    assert_eq!(url.query(), Some("iss.meta=on"));
-}
-
-#[test]
-fn payload_http_error_takes_precedence_over_content_detection() {
-    let body = "я".repeat(NON_JSON_BODY_PREFIX_CHARS + 1);
-    let error = validate_payload(
-        "engines.json",
-        StatusCode::BAD_GATEWAY,
-        Some(reqwest::header::HeaderValue::from_static("text/html")),
-        body,
-    )
-    .expect_err("HTTP error");
-    assert!(
-        matches!(error, MoexError::HttpStatus { endpoint, status: StatusCode::BAD_GATEWAY, content_type: Some(content_type), body_prefix } if endpoint.as_ref() == "engines.json" && content_type.as_ref() == "text/html" && body_prefix.chars().count() == NON_JSON_BODY_PREFIX_CHARS)
-    );
-}
-
-#[test]
-fn payload_detection_keeps_header_and_body_fallback_contracts() {
-    assert_eq!(
-        validate_payload(
-            "test.json",
-            StatusCode::OK,
-            Some(reqwest::header::HeaderValue::from_static(
-                "APPLICATION/JSON"
-            )),
-            "text".into()
-        )
-        .expect("JSON content type"),
-        "text"
-    );
-    assert_eq!(
-        validate_payload("test.json", StatusCode::OK, None, " \n[]".into()).expect("JSON body"),
-        " \n[]"
-    );
-    assert!(
-        matches!(validate_payload("test.json", StatusCode::OK, None, "<html>".into()), Err(MoexError::NonJsonPayload { endpoint, content_type: None, body_prefix }) if endpoint.as_ref() == "test.json" && body_prefix.as_ref() == "<html>")
-    );
-}
-
-#[test]
-fn payload_detection_ignores_non_text_content_type() {
-    let content_type =
-        reqwest::header::HeaderValue::from_bytes(b"application/\xff").expect("valid opaque header");
-    assert_eq!(
-        validate_payload(
-            "test.json",
-            StatusCode::OK,
-            Some(content_type.clone()),
-            "[]".into()
-        )
-        .expect("JSON body fallback"),
-        "[]"
-    );
-    assert!(matches!(
-        validate_payload(
-            "test.json",
-            StatusCode::OK,
-            Some(content_type.clone()),
-            "text".into()
-        ),
-        Err(MoexError::NonJsonPayload {
-            content_type: None,
-            ..
-        })
-    ));
-    assert!(matches!(
-        validate_payload(
-            "test.json",
-            StatusCode::BAD_GATEWAY,
-            Some(content_type),
-            "text".into()
-        ),
-        Err(MoexError::HttpStatus {
-            content_type: None,
-            ..
-        })
-    ));
-}
-
 #[cfg(feature = "blocking")]
 #[test]
 fn blocking_finished_paginator_never_fetches_another_page() {
@@ -259,19 +139,6 @@ fn blocking_finished_paginator_never_fetches_another_page() {
     pages.pagination.finished = true;
     assert_eq!(pages.next_page().expect("finished paginator"), None);
     assert!(pages.try_collect().expect("empty collection").is_empty());
-}
-
-#[cfg(feature = "async")]
-fn immediate<F: std::future::Future>(future: F) -> F::Output {
-    use std::task::{Context, Poll, Waker};
-    let mut future = std::pin::pin!(future);
-    match future
-        .as_mut()
-        .poll(&mut Context::from_waker(Waker::noop()))
-    {
-        Poll::Ready(output) => output,
-        Poll::Pending => panic!("future unexpectedly requires a runtime"),
-    }
 }
 
 #[cfg(feature = "async")]

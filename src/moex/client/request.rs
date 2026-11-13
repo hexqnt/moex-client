@@ -1,127 +1,5 @@
 use super::*;
 
-#[derive(Clone, Copy)]
-pub(super) enum TableSelection {
-    Indices,
-    Analytics,
-    Turnovers,
-    Engines,
-    Markets,
-    Boards,
-    SecurityBoards,
-    Securities,
-    Snapshots,
-    Orderbook,
-    Candles,
-    Trades,
-    SecStats,
-    MetadataOnly,
-    #[cfg(feature = "news")]
-    SiteNews,
-    #[cfg(feature = "news")]
-    Events,
-    #[cfg(feature = "history")]
-    HistoryDates,
-    #[cfg(feature = "history")]
-    History,
-}
-
-impl TableSelection {
-    fn parameters(self) -> &'static [(&'static str, &'static str)] {
-        match self {
-            Self::Indices => &[
-                (ISS_ONLY_PARAM, "indices"),
-                (INDICES_COLUMNS_PARAM, INDICES_COLUMNS),
-            ],
-            Self::Analytics => &[
-                (ISS_ONLY_PARAM, "analytics"),
-                (ANALYTICS_COLUMNS_PARAM, ANALYTICS_COLUMNS),
-            ],
-            Self::Turnovers => &[
-                (ISS_ONLY_PARAM, "turnovers"),
-                (TURNOVERS_COLUMNS_PARAM, TURNOVERS_COLUMNS),
-            ],
-            Self::Engines => &[
-                (ISS_ONLY_PARAM, "engines"),
-                (ENGINES_COLUMNS_PARAM, ENGINES_COLUMNS),
-            ],
-            Self::Markets => &[
-                (ISS_ONLY_PARAM, "markets"),
-                (MARKETS_COLUMNS_PARAM, MARKETS_COLUMNS),
-            ],
-            Self::Boards => &[
-                (ISS_ONLY_PARAM, "boards"),
-                (BOARDS_COLUMNS_PARAM, BOARDS_COLUMNS),
-            ],
-            Self::SecurityBoards => &[
-                (ISS_ONLY_PARAM, "boards"),
-                (BOARDS_COLUMNS_PARAM, SECURITY_BOARDS_COLUMNS),
-            ],
-            Self::Securities => &[
-                (ISS_ONLY_PARAM, "securities"),
-                (SECURITIES_COLUMNS_PARAM, SECURITIES_COLUMNS),
-            ],
-            Self::Snapshots => &[
-                (ISS_ONLY_PARAM, "securities,marketdata"),
-                (SECURITIES_COLUMNS_PARAM, SECURITIES_SNAPSHOT_COLUMNS),
-                (MARKETDATA_COLUMNS_PARAM, MARKETDATA_LAST_COLUMNS),
-            ],
-            Self::Orderbook => &[
-                (ISS_ONLY_PARAM, "orderbook"),
-                (ORDERBOOK_COLUMNS_PARAM, ORDERBOOK_COLUMNS),
-            ],
-            Self::Candles => &[
-                (ISS_ONLY_PARAM, "candles"),
-                (CANDLES_COLUMNS_PARAM, CANDLES_COLUMNS),
-            ],
-            Self::Trades => &[
-                (ISS_ONLY_PARAM, "trades"),
-                (TRADES_COLUMNS_PARAM, TRADES_COLUMNS),
-            ],
-            Self::SecStats => &[
-                (ISS_ONLY_PARAM, "secstats"),
-                (SECSTATS_COLUMNS_PARAM, SECSTATS_COLUMNS),
-            ],
-            Self::MetadataOnly => &[],
-            #[cfg(feature = "news")]
-            Self::SiteNews => &[
-                (ISS_ONLY_PARAM, "sitenews"),
-                (SITENEWS_COLUMNS_PARAM, SITENEWS_COLUMNS),
-            ],
-            #[cfg(feature = "news")]
-            Self::Events => &[
-                (ISS_ONLY_PARAM, "events"),
-                (EVENTS_COLUMNS_PARAM, EVENTS_COLUMNS),
-            ],
-            #[cfg(feature = "history")]
-            Self::HistoryDates => &[(ISS_ONLY_PARAM, "dates")],
-            #[cfg(feature = "history")]
-            Self::History => &[
-                (ISS_ONLY_PARAM, "history"),
-                (HISTORY_COLUMNS_PARAM, HISTORY_COLUMNS),
-            ],
-        }
-    }
-}
-
-pub(super) fn apply_iss_request_options(
-    query: &mut Vec<(Box<str>, Box<str>)>,
-    options: IssRequestOptions,
-) {
-    if let Some(metadata) = options.metadata_value() {
-        query.push((ISS_META_PARAM.into(), metadata.as_query_value().into()));
-    }
-    if let Some(data) = options.data_value() {
-        query.push((ISS_DATA_PARAM.into(), data.as_query_value().into()));
-    }
-    if let Some(version) = options.version_value() {
-        query.push((ISS_VERSION_PARAM.into(), version.as_query_value().into()));
-    }
-    if let Some(json) = options.json_value() {
-        query.push((ISS_JSON_PARAM.into(), json.into()));
-    }
-}
-
 pub(in crate::moex) fn normalize_raw_endpoint_path(
     path: Option<&str>,
 ) -> Result<Box<str>, MoexError> {
@@ -161,33 +39,6 @@ pub(in crate::moex) fn normalize_raw_endpoint_path(
     let mut normalized = endpoint.to_owned();
     normalized.push_str(".json");
     Ok(normalized.into_boxed_str())
-}
-
-pub(in crate::moex) fn optional_single_security(
-    endpoint: &str,
-    mut securities: Vec<Security>,
-) -> Result<Option<Security>, MoexError> {
-    if securities.len() > 1 {
-        return Err(MoexError::UnexpectedSecurityRows {
-            endpoint: endpoint.to_owned().into_boxed_str(),
-            row_count: securities.len(),
-        });
-    }
-    Ok(securities.pop())
-}
-
-#[cfg(feature = "history")]
-pub(in crate::moex) fn optional_single_history_dates(
-    endpoint: &str,
-    mut dates: Vec<HistoryDates>,
-) -> Result<Option<HistoryDates>, MoexError> {
-    if dates.len() > 1 {
-        return Err(MoexError::UnexpectedHistoryDatesRows {
-            endpoint: endpoint.to_owned().into_boxed_str(),
-            row_count: dates.len(),
-        });
-    }
-    Ok(dates.pop())
 }
 
 pub(in crate::moex) fn append_candle_query_to_url(
@@ -333,3 +184,6 @@ pub(super) fn validate_payload(
     }
     Ok(payload)
 }
+
+#[cfg(test)]
+mod tests;

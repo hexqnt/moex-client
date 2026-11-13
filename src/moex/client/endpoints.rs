@@ -99,9 +99,12 @@ table_endpoint!(
 );
 
 fn decode_single_security(payload: &str, endpoint: &str) -> Result<Option<Security>, MoexError> {
-    optional_single_security(
-        endpoint,
+    optional_single(
         decode_securities_json_with_endpoint(payload, endpoint)?,
+        |row_count| MoexError::UnexpectedSecurityRows {
+            endpoint: endpoint.into(),
+            row_count,
+        },
     )
 }
 
@@ -110,10 +113,23 @@ fn decode_single_history_dates(
     payload: &str,
     endpoint: &str,
 ) -> Result<Option<HistoryDates>, MoexError> {
-    optional_single_history_dates(
-        endpoint,
+    optional_single(
         decode_history_dates_json_with_endpoint(payload, endpoint)?,
+        |row_count| MoexError::UnexpectedHistoryDatesRows {
+            endpoint: endpoint.into(),
+            row_count,
+        },
     )
+}
+
+fn optional_single<T>(
+    mut rows: Vec<T>,
+    unexpected_rows: impl FnOnce(usize) -> MoexError,
+) -> Result<Option<T>, MoexError> {
+    match rows.len() {
+        0 | 1 => Ok(rows.pop()),
+        count => Err(unexpected_rows(count)),
+    }
 }
 
 macro_rules! pages {
@@ -380,3 +396,6 @@ paginated_endpoint!(
     history_query_filtered, history_pages_filtered, fetch_history_page,
     args { engine: EngineName, market: MarketName, board: BoardId, security: SecId }, query { query: HistoryQuery => append_history_query_to_url }, history_endpoint(engine, market, board, security), History, decode_history_json_with_endpoint
 );
+
+#[cfg(test)]
+mod tests;

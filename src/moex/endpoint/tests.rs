@@ -1,5 +1,6 @@
-use super::IssEndpoint::{self, *};
 use crate::models::{BoardId, EngineName, IndexId, MarketName, SecId};
+
+use super::IssEndpoint::{self, *};
 
 #[test]
 fn endpoints_preserve_paths_and_default_tables() {

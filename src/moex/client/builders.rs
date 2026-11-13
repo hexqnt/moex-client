@@ -102,7 +102,7 @@ impl BlockingMoexClientBuilder {
             rate_limit,
         } = self;
         let base_url = resolve_base_url_or_default(base_url)?;
-        let client = resolve_blocking_http_client(client, http_client)?;
+        let client = resolve_http_client(client, || http_client.build())?;
         Ok(BlockingMoexClient::with_base_url_and_rate_limit(
             client, base_url, metadata, rate_limit,
         ))
@@ -149,7 +149,7 @@ impl AsyncMoexClientBuilder {
             rate_limit_sleep,
         } = self;
         let base_url = resolve_base_url_or_default(base_url)?;
-        let client = resolve_async_http_client(client, http_client)?;
+        let client = resolve_http_client(client, || http_client.build())?;
         let rate_limit = resolve_async_rate_limit_state(rate_limit, rate_limit_sleep)?;
         Ok(AsyncMoexClient::with_base_url_and_rate_limit(
             client, base_url, metadata, rate_limit,

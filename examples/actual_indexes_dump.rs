@@ -21,14 +21,14 @@ enum ExampleError {
     Moex(#[from] MoexError),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct IndexDump {
     index_id: Box<str>,
     short_name: Box<str>,
     components: Vec<IndexAnalytics>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct ResolvedSnapshot {
     market: Box<str>,
     board: Box<str>,

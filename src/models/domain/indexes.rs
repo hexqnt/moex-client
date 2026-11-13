@@ -82,6 +82,48 @@ pub struct IndexAnalytics {
     trade_session_date: NaiveDate,
 }
 
+impl IndexAnalytics {
+    /// Идентификатор индекса (`indexid`).
+    pub fn indexid(&self) -> &IndexId {
+        &self.indexid
+    }
+
+    /// Дата торгов (`tradedate`).
+    pub fn tradedate(&self) -> NaiveDate {
+        self.tradedate
+    }
+
+    /// Тикер компонента.
+    pub fn ticker(&self) -> &SecId {
+        &self.ticker
+    }
+
+    /// Краткие имена бумаг.
+    pub fn shortnames(&self) -> &str {
+        self.shortnames.as_ref()
+    }
+
+    /// Идентификатор инструмента компонента.
+    pub fn secid(&self) -> &SecId {
+        &self.secid
+    }
+
+    /// Вес компонента в индексе.
+    pub fn weight(&self) -> f64 {
+        self.weight
+    }
+
+    /// Торговая сессия (`1..=3`).
+    pub fn tradingsession(&self) -> u8 {
+        self.tradingsession
+    }
+
+    /// Дата торговой сессии (`tradedate` в источнике `analytics`).
+    pub fn trade_session_date(&self) -> NaiveDate {
+        self.trade_session_date
+    }
+}
+
 impl TryFrom<IndexAnalyticsRow> for IndexAnalytics {
     type Error = ParseIndexAnalyticsError;
 
@@ -124,48 +166,6 @@ impl TryFrom<IndexAnalyticsRow> for IndexAnalytics {
             tradingsession: tradingsession as u8,
             trade_session_date,
         })
-    }
-}
-
-impl IndexAnalytics {
-    /// Идентификатор индекса (`indexid`).
-    pub fn indexid(&self) -> &IndexId {
-        &self.indexid
-    }
-
-    /// Дата торгов (`tradedate`).
-    pub fn tradedate(&self) -> NaiveDate {
-        self.tradedate
-    }
-
-    /// Тикер компонента.
-    pub fn ticker(&self) -> &SecId {
-        &self.ticker
-    }
-
-    /// Краткие имена бумаг.
-    pub fn shortnames(&self) -> &str {
-        self.shortnames.as_ref()
-    }
-
-    /// Идентификатор инструмента компонента.
-    pub fn secid(&self) -> &SecId {
-        &self.secid
-    }
-
-    /// Вес компонента в индексе.
-    pub fn weight(&self) -> f64 {
-        self.weight
-    }
-
-    /// Торговая сессия (`1..=3`).
-    pub fn tradingsession(&self) -> u8 {
-        self.tradingsession
-    }
-
-    /// Дата торговой сессии (`tradedate` в источнике `analytics`).
-    pub fn trade_session_date(&self) -> NaiveDate {
-        self.trade_session_date
     }
 }
 

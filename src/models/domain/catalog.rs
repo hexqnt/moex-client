@@ -343,3 +343,5 @@ tuple_row_conversion!(MarketRow => Market, ParseMarketError; 0, 1, 2);
 tuple_row_conversion!(BoardRow => Board, ParseBoardError; 0, 1, 2, 3, 4);
 
 tuple_row_conversion!(SecurityRow => Security, ParseSecurityError; 0, 1, 2, 3);
+
+tuple_row_conversion!(SecurityBoardRow => SecurityBoard, ParseSecurityBoardError; 0, 1, 2, 3);

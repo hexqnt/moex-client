@@ -49,7 +49,8 @@
 - `blocking` — блокирующий клиент.
 - `history` — эндпоинты `/history/...`.
 - `news` — эндпоинты `/sitenews` и `/events`.
-- `rustls-tls` / `native-tls` — TLS-бэкенд для `reqwest`.
+- `rustls-tls` — TLS-бэкенд rustls.
+- `native-tls` — совместимый флаг, передаваемый в `reqwest/default-tls`, который в reqwest 0.13 также включает rustls.
 
 Конфигурация только с асинхронным API:
 

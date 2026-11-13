@@ -173,6 +173,34 @@ fn main() {
                 .param("start", "0"),
         );
     });
+    measure("raw_options_json", || {
+        let _ = black_box(
+            client.raw_endpoint(IssEndpoint::Indexes).options(
+                IssRequestOptions::new()
+                    .metadata(IssToggle::Off)
+                    .json(black_box("extended")),
+            ),
+        );
+    });
+    measure("raw_custom_params", || {
+        let _ = black_box(
+            client
+                .raw()
+                .path("engines")
+                .param("q", "A&B +/Я")
+                .param("start", "0")
+                .param("limit", "100")
+                .param("unused", "value"),
+        );
+    });
+    measure("retry_immediate", || {
+        black_box(
+            moex_client::with_retry(moex_client::RetryPolicy::default(), || {
+                black_box(Ok::<_, moex_client::MoexError>(42))
+            })
+            .unwrap(),
+        );
+    });
     let index = IndexId::try_from("IMOEX").unwrap();
     measure("scopes", || {
         black_box(client.index(black_box(&index)).unwrap());

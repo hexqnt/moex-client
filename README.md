@@ -49,7 +49,8 @@ The default features are `blocking` and `rustls-tls`.
 - `blocking` — blocking client.
 - `history` — `/history/...` endpoints.
 - `news` — `/sitenews` and `/events` endpoints.
-- `rustls-tls` / `native-tls` — the TLS backend used by `reqwest`.
+- `rustls-tls` — the rustls TLS backend.
+- `native-tls` — a compatibility flag forwarded to `reqwest/default-tls`, which also enables rustls in reqwest 0.13.
 
 Async-only configuration:
 

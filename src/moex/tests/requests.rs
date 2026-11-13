@@ -8,17 +8,15 @@ use reqwest::{
     header::{CONTENT_TYPE, HeaderMap, HeaderValue},
 };
 
-use crate::models::{BoardId, CandleQuery, EngineName, MarketName, Pagination, Security};
 #[cfg(feature = "history")]
-use crate::models::{HistoryDates, HistoryQuery};
+use crate::models::HistoryQuery;
+use crate::models::{BoardId, CandleQuery, EngineName, MarketName, Pagination};
 
 #[cfg(feature = "history")]
 use crate::moex::client::append_history_query_to_url;
-#[cfg(feature = "history")]
-use crate::moex::client::optional_single_history_dates;
 use crate::moex::client::{
     append_candle_query_to_url, append_pagination_to_url, looks_like_json_payload,
-    normalize_raw_endpoint_path, optional_single_security, truncate_prefix,
+    normalize_raw_endpoint_path, truncate_prefix,
 };
 use crate::moex::constants::*;
 use crate::moex::*;
@@ -48,103 +46,6 @@ fn raw_endpoint_builder_accepts_typed_endpoint() {
             board: &board,
         })
         .columns("securities", "SECID,LOTSIZE");
-}
-
-#[test]
-fn optional_single_security_accepts_empty_and_single_row() {
-    let empty = optional_single_security("securities/SBER.json", Vec::new())
-        .expect("empty securities table is valid");
-    assert!(empty.is_none());
-
-    let single_row = vec![
-        Security::try_new(
-            "SBER".to_owned(),
-            "Сбербанк".to_owned(),
-            "ПАО Сбербанк".to_owned(),
-            "A".to_owned(),
-        )
-        .expect("valid security"),
-    ];
-    let single = optional_single_security("securities/SBER.json", single_row)
-        .expect("single row must be accepted");
-    assert_eq!(
-        single
-            .expect("single row must produce security")
-            .secid()
-            .as_str(),
-        "SBER"
-    );
-}
-
-#[test]
-fn optional_single_security_rejects_multiple_rows() {
-    let rows = vec![
-        Security::try_new(
-            "SBER".to_owned(),
-            "Сбербанк".to_owned(),
-            "ПАО Сбербанк".to_owned(),
-            "A".to_owned(),
-        )
-        .expect("valid security"),
-        Security::try_new(
-            "GAZP".to_owned(),
-            "Газпром".to_owned(),
-            "ПАО Газпром".to_owned(),
-            "A".to_owned(),
-        )
-        .expect("valid security"),
-    ];
-
-    let err = optional_single_security("securities/SBER.json", rows)
-        .expect_err("multiple rows must be rejected");
-    match err {
-        MoexError::UnexpectedSecurityRows {
-            endpoint,
-            row_count,
-        } => {
-            assert_eq!(endpoint.as_ref(), "securities/SBER.json");
-            assert_eq!(row_count, 2);
-        }
-        other => panic!("unexpected error variant: {other:?}"),
-    }
-}
-
-#[cfg(feature = "history")]
-#[test]
-fn optional_single_history_dates_accepts_empty_and_single_row() {
-    let empty = optional_single_history_dates("history/.../dates.json", Vec::new())
-        .expect("empty dates table is valid");
-    assert!(empty.is_none());
-
-    let single_row =
-        vec![HistoryDates::try_new(d("2013-03-25"), d("2026-03-06")).expect("valid dates")];
-    let single = optional_single_history_dates("history/.../dates.json", single_row)
-        .expect("single row must be accepted");
-    assert_eq!(
-        single.expect("single row must produce dates").from(),
-        d("2013-03-25")
-    );
-}
-
-#[cfg(feature = "history")]
-#[test]
-fn optional_single_history_dates_rejects_multiple_rows() {
-    let rows = vec![
-        HistoryDates::try_new(d("2013-03-25"), d("2026-03-06")).expect("valid dates"),
-        HistoryDates::try_new(d("2011-01-01"), d("2012-01-01")).expect("valid dates"),
-    ];
-    let err = optional_single_history_dates("history/.../dates.json", rows)
-        .expect_err("multiple rows must be rejected");
-    match err {
-        MoexError::UnexpectedHistoryDatesRows {
-            endpoint,
-            row_count,
-        } => {
-            assert_eq!(endpoint.as_ref(), "history/.../dates.json");
-            assert_eq!(row_count, 2);
-        }
-        other => panic!("unexpected error variant: {other:?}"),
-    }
 }
 
 #[test]

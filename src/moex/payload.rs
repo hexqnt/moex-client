@@ -8,7 +8,8 @@ use crate::models::{
     Board, BoardRow, Candle, CandleBorder, CandleBorderRow, CandleRow, Engine, EngineRow, Index,
     IndexAnalytics, IndexAnalyticsRow, IndexRow, Market, MarketRow, OrderbookLevel,
     OrderbookLevelRow, ParseSecuritySnapshotError, SecId, SecStat, SecStatRow, Security,
-    SecurityBoard, SecurityRow, SecuritySnapshot, Trade, TradeRow, Turnover, TurnoverRow,
+    SecurityBoard, SecurityBoardRow, SecurityRow, SecuritySnapshot, Trade, TradeRow, Turnover,
+    TurnoverRow,
 };
 #[cfg(feature = "news")]
 use crate::models::{Event, EventRow, SiteNews, SiteNewsRow};
@@ -95,20 +96,26 @@ pub(super) fn decode_board_security_snapshots_json_with_endpoint(
 ) -> Result<Vec<SecuritySnapshot>, MoexError> {
     let payload: BoardSecuritySnapshotsResponse = parse_json(payload, endpoint)?;
 
+    let invalid_row = |table, row, source| MoexError::InvalidSecuritySnapshot {
+        endpoint: endpoint.into(),
+        table,
+        row,
+        source,
+    };
     let mut last_by_secid: HashMap<SecId, (usize, Option<f64>)> =
         HashMap::with_capacity(payload.marketdata.data.len());
     for (row, BoardMarketDataRow(secid, last)) in payload.marketdata.data.into_iter().enumerate() {
         if let Some(last) = last
             && !last.is_finite()
         {
-            return Err(MoexError::InvalidSecuritySnapshot {
-                endpoint: endpoint.to_owned().into_boxed_str(),
-                table: "marketdata",
+            return Err(invalid_row(
+                "marketdata",
                 row,
-                source: ParseSecuritySnapshotError::NonFiniteLast(last),
-            });
+                ParseSecuritySnapshotError::NonFiniteLast(last),
+            ));
         }
-        let secid = parse_snapshot_secid(endpoint, "marketdata", row, secid)?;
+        let secid = SecId::try_from(secid)
+            .map_err(|source| invalid_row("marketdata", row, source.into()))?;
         last_by_secid.insert(secid, (row, last));
     }
 
@@ -123,38 +130,20 @@ pub(super) fn decode_board_security_snapshots_json_with_endpoint(
     for (row, BoardSecurityRow(secid, lot_size_raw)) in
         payload.securities.data.into_iter().enumerate()
     {
-        let secid = parse_snapshot_secid(endpoint, "securities", row, secid)?;
-        let lot_size = SecuritySnapshot::parse_lot_size(lot_size_raw).map_err(|source| {
-            MoexError::InvalidSecuritySnapshot {
-                endpoint: endpoint.into(),
-                table: "securities",
-                row,
-                source,
-            }
-        })?;
+        let secid = SecId::try_from(secid)
+            .map_err(|source| invalid_row("securities", row, source.into()))?;
+        let lot_size = SecuritySnapshot::parse_lot_size(lot_size_raw)
+            .map_err(|source| invalid_row("securities", row, source))?;
         let last = last_by_secid.remove(&secid).and_then(|(_, last)| last);
 
-        let snapshot =
-            SecuritySnapshot::try_from_parts(secid, lot_size, last).map_err(|source| {
-                MoexError::InvalidSecuritySnapshot {
-                    endpoint: endpoint.to_owned().into_boxed_str(),
-                    table: "securities",
-                    row,
-                    source,
-                }
-            })?;
+        let snapshot = SecuritySnapshot::try_from_parts(secid, lot_size, last)
+            .map_err(|source| invalid_row("securities", row, source))?;
         snapshots.push(snapshot);
     }
 
     for (secid, (row, last)) in last_by_secid {
-        let snapshot = SecuritySnapshot::try_from_parts(secid, None, last).map_err(|source| {
-            MoexError::InvalidSecuritySnapshot {
-                endpoint: endpoint.to_owned().into_boxed_str(),
-                table: "marketdata",
-                row,
-                source,
-            }
-        })?;
+        let snapshot = SecuritySnapshot::try_from_parts(secid, None, last)
+            .map_err(|source| invalid_row("marketdata", row, source))?;
         snapshots.push(snapshot);
     }
 
@@ -172,20 +161,6 @@ pub(super) fn decode_history_json_with_endpoint(
         endpoint: endpoint.into(),
         row,
         source,
-    })
-}
-
-fn parse_snapshot_secid(
-    endpoint: &str,
-    table: &'static str,
-    row: usize,
-    secid: String,
-) -> Result<SecId, MoexError> {
-    SecId::try_from(secid).map_err(|source| MoexError::InvalidSecuritySnapshot {
-        endpoint: endpoint.to_owned().into_boxed_str(),
-        table,
-        row,
-        source: ParseSecuritySnapshotError::InvalidSecId(source),
     })
 }
 

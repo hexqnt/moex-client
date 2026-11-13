@@ -1,3 +1,14 @@
+mod candles;
+mod catalog;
+#[cfg(feature = "history")]
+mod history;
+mod identifiers;
+mod indexes;
+mod news;
+mod selectors;
+mod trading;
+mod wire;
+
 use std::num::NonZeroU32;
 
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
@@ -15,17 +26,6 @@ fn dt(input: &str) -> NaiveDateTime {
 fn t(input: &str) -> NaiveTime {
     NaiveTime::parse_from_str(input, "%H:%M:%S").unwrap()
 }
-
-mod candles;
-mod catalog;
-#[cfg(feature = "history")]
-mod history;
-mod identifiers;
-mod indexes;
-mod news;
-mod selectors;
-mod trading;
-mod wire;
 
 #[test]
 fn pagination_builder_sets_start_and_limit() {

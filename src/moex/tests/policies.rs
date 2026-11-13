@@ -164,29 +164,12 @@ fn with_rate_limit_executes_action_and_returns_value() {
 }
 
 #[cfg(feature = "async")]
-fn block_on_immediate<F>(future: F) -> F::Output
-where
-    F: std::future::Future,
-{
-    use std::pin::pin;
-    use std::task::{Context, Poll, Waker};
-
-    let waker = Waker::noop();
-    let mut cx = Context::from_waker(waker);
-    let mut future = pin!(future);
-    match future.as_mut().poll(&mut cx) {
-        Poll::Ready(output) => output,
-        Poll::Pending => panic!("test future unexpectedly returned Poll::Pending"),
-    }
-}
-
-#[cfg(feature = "async")]
 #[test]
 fn with_rate_limit_async_skips_sleep_on_first_slot() {
     let mut limiter = RateLimiter::new(RateLimit::every(Duration::from_secs(1)));
     let mut sleep_calls = 0_u32;
 
-    let value = block_on_immediate(with_rate_limit_async(
+    let value = super::immediate(with_rate_limit_async(
         &mut limiter,
         || std::future::ready(7_u32),
         |_delay| {
@@ -206,7 +189,7 @@ fn with_rate_limit_async_uses_injected_sleep_when_delay_is_reserved() {
     limiter.reserve_delay_at(Instant::now());
     let mut slept = Vec::new();
 
-    let value = block_on_immediate(with_rate_limit_async(
+    let value = super::immediate(with_rate_limit_async(
         &mut limiter,
         || std::future::ready(9_u32),
         |delay| {
@@ -219,4 +202,48 @@ fn with_rate_limit_async_uses_injected_sleep_when_delay_is_reserved() {
     assert_eq!(slept.len(), 1);
     assert!(slept[0] > Duration::ZERO);
     assert!(slept[0] <= Duration::from_secs(1));
+}
+
+#[cfg(feature = "async")]
+#[test]
+fn async_retry_preserves_attempt_limits_retryability_and_delays() {
+    for (max, success_at, status, expected_attempts, expected_sleeps, succeeds) in [
+        (3, 3, StatusCode::SERVICE_UNAVAILABLE, 3, 2, true),
+        (2, 3, StatusCode::SERVICE_UNAVAILABLE, 2, 1, false),
+        (5, 2, StatusCode::BAD_REQUEST, 1, 0, false),
+        (1, 2, StatusCode::SERVICE_UNAVAILABLE, 1, 0, false),
+        (1, 1, StatusCode::SERVICE_UNAVAILABLE, 1, 0, true),
+    ] {
+        let delay = Duration::from_millis(17);
+        let policy = RetryPolicy::new(NonZeroU32::new(max).unwrap()).with_delay(delay);
+        let mut attempts = 0;
+        let mut slept = Vec::new();
+        let result = super::immediate(with_retry_async(
+            policy,
+            || {
+                attempts += 1;
+                std::future::ready(if attempts == success_at {
+                    Ok(42)
+                } else {
+                    Err(MoexError::HttpStatus {
+                        endpoint: "engines.json".into(),
+                        status,
+                        content_type: None,
+                        body_prefix: "retry".into(),
+                    })
+                })
+            },
+            |duration| {
+                slept.push(duration);
+                std::future::ready(())
+            },
+        ));
+        assert_eq!(attempts, expected_attempts);
+        assert_eq!(slept, vec![delay; expected_sleeps]);
+        if succeeds {
+            assert_eq!(result.unwrap(), 42);
+        } else {
+            assert_eq!(result.unwrap_err().status_code(), Some(status));
+        }
+    }
 }

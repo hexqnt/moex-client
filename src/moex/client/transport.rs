@@ -84,8 +84,8 @@ macro_rules! client_scopes {
     };
 }
 
-macro_rules! raw_requests {
-    ($request:ident) => {
+macro_rules! client_requests {
+    ($request:ident, $response:ty, $mode:ident, [$($asyncness:tt)?]) => {
         /// Создать builder raw-запроса для произвольного ISS endpoint.
         pub fn raw(&self) -> $request<'_> {
             $request {
@@ -105,6 +105,48 @@ macro_rules! raw_requests {
                 Some(table) => request.only(table),
                 None => request,
             }
+        }
+
+        /// Получить снимки инструментов (`LOTSIZE` и `LAST`) по данным `SecurityBoard`.
+        pub $($asyncness)? fn board_security_snapshots(
+            &self,
+            board: &SecurityBoard,
+        ) -> Result<Vec<SecuritySnapshot>, MoexError> {
+            await_result!(
+                $mode,
+                self.board_snapshots(board.engine(), board.market(), board.boardid())
+            )
+        }
+
+        pub(super) $($asyncness)? fn fetch_response(
+            &self,
+            endpoint: &str,
+            endpoint_url: Url,
+        ) -> Result<$response, MoexError> {
+            await_result!($mode, self.wait_for_rate_limit());
+            await_result!($mode, self.client.get(endpoint_url).send())
+                .map_err(|source| MoexError::Request {
+                    endpoint: endpoint.to_owned().into_boxed_str(),
+                    source,
+                })
+        }
+
+        pub(super) $($asyncness)? fn fetch_payload(
+            &self,
+            endpoint: &str,
+            endpoint_url: Url,
+        ) -> Result<String, MoexError> {
+            let response = await_result!($mode, self.fetch_response(endpoint, endpoint_url))?;
+            let status = response.status();
+            let content_type = response
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .cloned();
+            let payload = await_result!($mode, response.text()).map_err(|source| MoexError::ReadBody {
+                endpoint: endpoint.to_owned().into_boxed_str(),
+                source,
+            })?;
+            validate_payload(endpoint, status, content_type, payload)
         }
     };
 }
@@ -201,7 +243,12 @@ impl BlockingMoexClient {
         }
     }
 
-    raw_requests!(RawIssRequestBuilder);
+    client_requests!(
+        RawIssRequestBuilder,
+        reqwest::blocking::Response,
+        blocking,
+        []
+    );
 
     client_scopes!(
         OwnedEngineScope,
@@ -209,48 +256,7 @@ impl BlockingMoexClient {
         OwnedSecurityResourceScope
     );
 
-    /// Получить снимки инструментов (`LOTSIZE` и `LAST`) по данным `SecurityBoard`.
-    pub fn board_security_snapshots(
-        &self,
-        board: &SecurityBoard,
-    ) -> Result<Vec<SecuritySnapshot>, MoexError> {
-        self.board_snapshots(board.engine(), board.market(), board.boardid())
-    }
-
     history_defaults!(blocking, [], HistoryPages);
-
-    pub(super) fn fetch_response(
-        &self,
-        endpoint: &str,
-        endpoint_url: Url,
-    ) -> Result<reqwest::blocking::Response, MoexError> {
-        self.wait_for_rate_limit();
-        self.client
-            .get(endpoint_url)
-            .send()
-            .map_err(|source| MoexError::Request {
-                endpoint: endpoint.to_owned().into_boxed_str(),
-                source,
-            })
-    }
-
-    pub(super) fn fetch_payload(
-        &self,
-        endpoint: &str,
-        endpoint_url: Url,
-    ) -> Result<String, MoexError> {
-        let response = self.fetch_response(endpoint, endpoint_url)?;
-        let status = response.status();
-        let content_type = response
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .cloned();
-        let payload = response.text().map_err(|source| MoexError::ReadBody {
-            endpoint: endpoint.to_owned().into_boxed_str(),
-            source,
-        })?;
-        validate_payload(endpoint, status, content_type, payload)
-    }
 
     pub(super) fn wait_for_rate_limit(&self) {
         let Some(limiter) = &self.rate_limiter else {
@@ -309,7 +315,7 @@ impl AsyncMoexClient {
         }
     }
 
-    raw_requests!(AsyncRawIssRequestBuilder);
+    client_requests!(AsyncRawIssRequestBuilder, reqwest::Response, asynchronous, [async]);
 
     client_scopes!(
         AsyncOwnedEngineScope,
@@ -317,53 +323,7 @@ impl AsyncMoexClient {
         AsyncOwnedSecurityResourceScope
     );
 
-    /// Получить снимки инструментов (`LOTSIZE` и `LAST`) по данным `SecurityBoard`.
-    pub async fn board_security_snapshots(
-        &self,
-        board: &SecurityBoard,
-    ) -> Result<Vec<SecuritySnapshot>, MoexError> {
-        self.board_snapshots(board.engine(), board.market(), board.boardid())
-            .await
-    }
-
     history_defaults!(asynchronous, [async], AsyncHistoryPages);
-
-    pub(super) async fn fetch_response(
-        &self,
-        endpoint: &str,
-        endpoint_url: Url,
-    ) -> Result<reqwest::Response, MoexError> {
-        self.wait_for_rate_limit().await;
-        self.client
-            .get(endpoint_url)
-            .send()
-            .await
-            .map_err(|source| MoexError::Request {
-                endpoint: endpoint.to_owned().into_boxed_str(),
-                source,
-            })
-    }
-
-    pub(super) async fn fetch_payload(
-        &self,
-        endpoint: &str,
-        endpoint_url: Url,
-    ) -> Result<String, MoexError> {
-        let response = self.fetch_response(endpoint, endpoint_url).await?;
-        let status = response.status();
-        let content_type = response
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .cloned();
-        let payload = response
-            .text()
-            .await
-            .map_err(|source| MoexError::ReadBody {
-                endpoint: endpoint.to_owned().into_boxed_str(),
-                source,
-            })?;
-        validate_payload(endpoint, status, content_type, payload)
-    }
 
     pub(super) async fn wait_for_rate_limit(&self) {
         let Some(rate_limit) = &self.rate_limit else {
@@ -392,29 +352,13 @@ pub(super) fn resolve_base_url_or_default(base_url: Option<Url>) -> Result<Url, 
     }
 }
 
-#[cfg(feature = "blocking")]
-pub(super) fn resolve_blocking_http_client(
-    client: Option<Client>,
-    http_client: ClientBuilder,
-) -> Result<Client, MoexError> {
+pub(super) fn resolve_http_client<T>(
+    client: Option<T>,
+    build: impl FnOnce() -> Result<T, reqwest::Error>,
+) -> Result<T, MoexError> {
     match client {
         Some(client) => Ok(client),
-        None => http_client
-            .build()
-            .map_err(|source| MoexError::BuildHttpClient { source }),
-    }
-}
-
-#[cfg(feature = "async")]
-pub(super) fn resolve_async_http_client(
-    client: Option<reqwest::Client>,
-    http_client: reqwest::ClientBuilder,
-) -> Result<reqwest::Client, MoexError> {
-    match client {
-        Some(client) => Ok(client),
-        None => http_client
-            .build()
-            .map_err(|source| MoexError::BuildHttpClient { source }),
+        None => build().map_err(|source| MoexError::BuildHttpClient { source }),
     }
 }
 

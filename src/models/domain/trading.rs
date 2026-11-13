@@ -262,53 +262,6 @@ pub struct SecStat {
     waprice: Option<f64>,
 }
 
-impl TryFrom<SecStatRow> for SecStat {
-    type Error = ParseSecStatError;
-
-    fn try_from(row: SecStatRow) -> Result<Self, Self::Error> {
-        let SecStatRow(
-            secid,
-            boardid,
-            voltoday,
-            valtoday,
-            highbid,
-            lowoffer,
-            lastoffer,
-            lastbid,
-            open,
-            low,
-            high,
-            last,
-            numtrades,
-            waprice,
-        ) = row;
-
-        let secid = SecId::try_from(secid)?;
-        let boardid = BoardId::try_from(boardid)?;
-
-        let voltoday = optional_non_negative(voltoday, ParseSecStatError::NegativeVolToday)?;
-
-        let numtrades = optional_non_negative(numtrades, ParseSecStatError::NegativeNumTrades)?;
-
-        Ok(Self {
-            secid,
-            boardid,
-            voltoday,
-            valtoday,
-            highbid,
-            lowoffer,
-            lastoffer,
-            lastbid,
-            open,
-            low,
-            high,
-            last,
-            numtrades,
-            waprice,
-        })
-    }
-}
-
 impl SecStat {
     /// Идентификатор инструмента (`SECID`).
     pub fn secid(&self) -> &SecId {
@@ -378,6 +331,53 @@ impl SecStat {
     /// Средневзвешенная цена (`WAPRICE`).
     pub fn waprice(&self) -> Option<f64> {
         self.waprice
+    }
+}
+
+impl TryFrom<SecStatRow> for SecStat {
+    type Error = ParseSecStatError;
+
+    fn try_from(row: SecStatRow) -> Result<Self, Self::Error> {
+        let SecStatRow(
+            secid,
+            boardid,
+            voltoday,
+            valtoday,
+            highbid,
+            lowoffer,
+            lastoffer,
+            lastbid,
+            open,
+            low,
+            high,
+            last,
+            numtrades,
+            waprice,
+        ) = row;
+
+        let secid = SecId::try_from(secid)?;
+        let boardid = BoardId::try_from(boardid)?;
+
+        let voltoday = optional_non_negative(voltoday, ParseSecStatError::NegativeVolToday)?;
+
+        let numtrades = optional_non_negative(numtrades, ParseSecStatError::NegativeNumTrades)?;
+
+        Ok(Self {
+            secid,
+            boardid,
+            voltoday,
+            valtoday,
+            highbid,
+            lowoffer,
+            lastoffer,
+            lastbid,
+            open,
+            low,
+            high,
+            last,
+            numtrades,
+            waprice,
+        })
     }
 }
 

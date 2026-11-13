@@ -3,10 +3,10 @@
 use std::num::NonZeroU32;
 use std::time::{Duration, Instant};
 
-#[cfg(any(feature = "async", feature = "blocking"))]
 use reqwest::{StatusCode, header::HeaderMap};
 
 use super::MoexError;
+use super::constants::{ISS_DATA_PARAM, ISS_JSON_PARAM, ISS_META_PARAM, ISS_VERSION_PARAM};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 /// Универсальный переключатель ISS-параметров со значениями `on/off`.
@@ -185,6 +185,21 @@ impl IssRequestOptions {
         self
     }
 
+    pub(super) fn append_to(self, query: &mut Vec<(Box<str>, Box<str>)>) {
+        if let Some(metadata) = self.metadata {
+            query.push((ISS_META_PARAM.into(), metadata.as_query_value().into()));
+        }
+        if let Some(data) = self.data {
+            query.push((ISS_DATA_PARAM.into(), data.as_query_value().into()));
+        }
+        if let Some(version) = self.version {
+            query.push((ISS_VERSION_PARAM.into(), version.as_query_value().into()));
+        }
+        if let Some(json) = self.json {
+            query.push((ISS_JSON_PARAM.into(), json));
+        }
+    }
+
     /// Текущее значение `iss.meta`, если задано.
     pub fn metadata_value(&self) -> Option<IssToggle> {
         self.metadata
@@ -208,14 +223,12 @@ impl IssRequestOptions {
 
 #[derive(Debug, Clone)]
 /// HTTP-ответ raw ISS-запроса без дополнительной валидации статуса/формата.
-#[cfg(any(feature = "async", feature = "blocking"))]
 pub struct RawIssResponse {
     status: StatusCode,
     headers: HeaderMap,
     body: String,
 }
 
-#[cfg(any(feature = "async", feature = "blocking"))]
 impl RawIssResponse {
     pub(crate) fn new(status: StatusCode, headers: HeaderMap, body: String) -> Self {
         Self {
@@ -246,6 +259,22 @@ impl RawIssResponse {
     }
 }
 
+macro_rules! retry_loop {
+    ($policy:ident, $action:expr, $sleep:expr) => {{
+        let mut attempts_left = $policy.max_attempts().get();
+        loop {
+            match $action {
+                Ok(value) => return Ok(value),
+                Err(error) if attempts_left > 1 && error.is_retryable() => {
+                    attempts_left -= 1;
+                    $sleep;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }};
+}
+
 /// Выполнить блокирующую операцию с повторами retryable-ошибок.
 ///
 /// Повтор выполняется только для [`MoexError::is_retryable`].
@@ -253,17 +282,7 @@ pub fn with_retry<T, F>(policy: RetryPolicy, mut action: F) -> Result<T, MoexErr
 where
     F: FnMut() -> Result<T, MoexError>,
 {
-    let mut attempts_left = policy.max_attempts().get();
-    loop {
-        match action() {
-            Ok(value) => return Ok(value),
-            Err(error) if attempts_left > 1 && error.is_retryable() => {
-                attempts_left -= 1;
-                std::thread::sleep(policy.delay());
-            }
-            Err(error) => return Err(error),
-        }
-    }
+    retry_loop!(policy, action(), std::thread::sleep(policy.delay()))
 }
 
 /// Выполнить блокирующую операцию с соблюдением [`RateLimiter`].
@@ -293,17 +312,7 @@ where
     S: FnMut(Duration) -> SleepFut,
     SleepFut: std::future::Future<Output = ()>,
 {
-    let mut attempts_left = policy.max_attempts().get();
-    loop {
-        match action().await {
-            Ok(value) => return Ok(value),
-            Err(error) if attempts_left > 1 && error.is_retryable() => {
-                attempts_left -= 1;
-                sleep(policy.delay()).await;
-            }
-            Err(error) => return Err(error),
-        }
-    }
+    retry_loop!(policy, action().await, sleep(policy.delay()).await)
 }
 
 /// Выполнить асинхронную операцию с соблюдением [`RateLimiter`].

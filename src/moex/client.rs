@@ -1,5 +1,4 @@
 use std::num::NonZeroU32;
-#[cfg(any(feature = "blocking", feature = "async"))]
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -34,7 +33,6 @@ use super::payload::{decode_events_json_with_endpoint, decode_sitenews_json_with
 #[cfg(feature = "history")]
 use super::payload::{decode_history_dates_json_with_endpoint, decode_history_json_with_endpoint};
 use super::{IssEndpoint, IssRequestOptions, IssToggle, MoexError, RawIssResponse};
-#[cfg(any(feature = "blocking", feature = "async"))]
 use super::{RateLimit, RateLimiter};
 
 #[cfg(feature = "async")]
@@ -69,10 +67,8 @@ pub use raw::*;
 pub use scopes::*;
 pub use transport::*;
 
-pub(super) use request::{
-    append_candle_query_to_url, append_pagination_to_url, optional_single_security,
-};
 #[cfg(feature = "history")]
-pub(super) use request::{append_history_query_to_url, optional_single_history_dates};
+pub(super) use request::append_history_query_to_url;
+pub(super) use request::{append_candle_query_to_url, append_pagination_to_url};
 #[cfg(all(test, feature = "blocking"))]
 pub(super) use request::{looks_like_json_payload, normalize_raw_endpoint_path, truncate_prefix};

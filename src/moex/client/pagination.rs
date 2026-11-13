@@ -70,5 +70,4 @@ impl<K: Eq> PaginationTracker<K> {
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;

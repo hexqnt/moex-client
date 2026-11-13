@@ -85,6 +85,16 @@ macro_rules! client_tests {
             }
 
             #[test]
+            fn supplied_http_client_skips_unused_builder_errors() {
+                let http = <$http>::builder().build().expect("valid HTTP client");
+                let _client = <$client>::builder()
+                    .client(http)
+                    .user_agent("invalid\nagent")
+                    .build()
+                    .expect("supplied client bypasses HTTP builder");
+            }
+
+            #[test]
             fn owned_scopes_accept_try_into_inputs_and_shortcuts() {
                 let client = <$client>::builder().build().expect("valid default builder");
                 let page_limit = NonZeroU32::new(1000).expect("non-zero page limit");

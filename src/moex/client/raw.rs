@@ -63,7 +63,7 @@ macro_rules! raw_builder {
 
             /// Применить пакет системных `iss.*`-опций.
             pub fn options(mut self, options: IssRequestOptions) -> Self {
-                apply_iss_request_options(&mut self.query, options);
+                options.append_to(&mut self.query);
                 self
             }
 

@@ -181,14 +181,23 @@ impl<'de, T: serde::Deserialize<'de>> Visitor<'de> for SelectedTable<'_, T> {
 
 fn decode_single_raw_table_payload<'de, T: serde::Deserialize<'de>>(
     payload: &'de str,
+    endpoint: &str,
     table: &str,
-) -> Result<Option<T>, serde_json::Error> {
+) -> Result<T, MoexError> {
     let mut deserializer = serde_json::Deserializer::from_str(payload);
     SelectedTable {
         table,
         marker: PhantomData,
     }
     .deserialize(&mut deserializer)
+    .map_err(|source| MoexError::Decode {
+        endpoint: endpoint.into(),
+        source,
+    })?
+    .ok_or_else(|| MoexError::MissingRawTable {
+        endpoint: endpoint.into(),
+        table: table.into(),
+    })
 }
 
 #[inline]
@@ -269,15 +278,7 @@ pub(in crate::moex) fn decode_raw_table_rows_json_with_endpoint<T>(
 where
     T: serde::de::DeserializeOwned,
 {
-    let table_payload = decode_single_raw_table_payload(payload, table)
-        .map_err(|source| MoexError::Decode {
-            endpoint: endpoint.into(),
-            source,
-        })?
-        .ok_or_else(|| MoexError::MissingRawTable {
-            endpoint: endpoint.into(),
-            table: table.into(),
-        })?;
+    let table_payload = decode_single_raw_table_payload(payload, endpoint, table)?;
     decode_raw_table_rows_payload_with_context(table_payload, endpoint, table)
 }
 
@@ -297,15 +298,7 @@ pub(in crate::moex) fn decode_raw_table_view_json_with_endpoint<'a>(
     table: &str,
 ) -> Result<RawTableView<'a>, MoexError> {
     let table_payload: BorrowedRawIssTableRowsPayload<'a> =
-        decode_single_raw_table_payload(payload, table)
-            .map_err(|source| MoexError::Decode {
-                endpoint: endpoint.into(),
-                source,
-            })?
-            .ok_or_else(|| MoexError::MissingRawTable {
-                endpoint: endpoint.into(),
-                table: table.into(),
-            })?;
+        decode_single_raw_table_payload(payload, endpoint, table)?;
 
     let expected_width = table_payload.columns.len();
     for (row, values) in table_payload.data.iter().enumerate() {

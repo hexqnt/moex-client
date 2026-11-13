@@ -2,31 +2,10 @@
 
 use serde::Deserialize;
 
-use crate::models::{ParseSecurityBoardError, SecurityBoard};
-
 #[derive(Debug, Deserialize)]
 /// Универсальное представление табличного блока ISS (`...: { data: [...] }`).
 pub(super) struct IssTable<T> {
     pub(super) data: Vec<T>,
-}
-
-#[derive(Debug, Deserialize)]
-/// Wire-строка таблицы `boards` внутри `securities/{secid}`.
-pub(super) struct SecurityBoardRow(
-    pub(super) String,
-    pub(super) String,
-    pub(super) String,
-    pub(super) i64,
-);
-
-impl TryFrom<SecurityBoardRow> for SecurityBoard {
-    type Error = ParseSecurityBoardError;
-
-    fn try_from(
-        SecurityBoardRow(engine, market, boardid, is_primary): SecurityBoardRow,
-    ) -> Result<Self, Self::Error> {
-        Self::try_new(engine, market, boardid, is_primary)
-    }
 }
 
 #[derive(Debug, Deserialize)]

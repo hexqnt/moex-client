@@ -53,50 +53,6 @@ pub struct HistoryRecord {
     yield_percent: Option<f64>,
 }
 
-impl TryFrom<HistoryRow> for HistoryRecord {
-    type Error = ParseHistoryRecordError;
-
-    fn try_from(row: HistoryRow) -> Result<Self, Self::Error> {
-        let HistoryRow {
-            boardid,
-            tradedate,
-            secid,
-            numtrades,
-            value,
-            open,
-            low,
-            high,
-            close,
-            volume,
-            duration_days,
-            yield_percent,
-        } = row;
-
-        let boardid = BoardId::try_from(boardid)?;
-        let secid = SecId::try_from(secid)?;
-
-        let numtrades =
-            optional_non_negative(numtrades, ParseHistoryRecordError::NegativeNumTrades)?;
-
-        let volume = optional_non_negative(volume, ParseHistoryRecordError::NegativeVolume)?;
-
-        Ok(Self {
-            boardid,
-            tradedate,
-            secid,
-            numtrades,
-            value,
-            open,
-            low,
-            high,
-            close,
-            volume,
-            duration_days,
-            yield_percent,
-        })
-    }
-}
-
 impl HistoryRecord {
     /// Идентификатор режима торгов (`boardid`).
     pub fn boardid(&self) -> &BoardId {
@@ -159,6 +115,50 @@ impl HistoryRecord {
     /// Доходность в процентах (`YIELD`), если поле присутствует в истории этого рынка.
     pub fn yield_percent(&self) -> Option<f64> {
         self.yield_percent
+    }
+}
+
+impl TryFrom<HistoryRow> for HistoryRecord {
+    type Error = ParseHistoryRecordError;
+
+    fn try_from(row: HistoryRow) -> Result<Self, Self::Error> {
+        let HistoryRow {
+            boardid,
+            tradedate,
+            secid,
+            numtrades,
+            value,
+            open,
+            low,
+            high,
+            close,
+            volume,
+            duration_days,
+            yield_percent,
+        } = row;
+
+        let boardid = BoardId::try_from(boardid)?;
+        let secid = SecId::try_from(secid)?;
+
+        let numtrades =
+            optional_non_negative(numtrades, ParseHistoryRecordError::NegativeNumTrades)?;
+
+        let volume = optional_non_negative(volume, ParseHistoryRecordError::NegativeVolume)?;
+
+        Ok(Self {
+            boardid,
+            tradedate,
+            secid,
+            numtrades,
+            value,
+            open,
+            low,
+            high,
+            close,
+            volume,
+            duration_days,
+            yield_percent,
+        })
     }
 }
 
